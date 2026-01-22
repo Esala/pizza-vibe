@@ -29,6 +29,14 @@ go fmt ./...
 
 # Vet code for issues
 go vet ./...
+
+# Run docker-compose validation tests
+./scripts/test-docker-compose.sh
+
+# Build and run with docker-compose
+docker-compose build
+docker-compose up -d
+docker-compose down
 ```
 
 ## Architecture
@@ -41,3 +49,11 @@ The Pizza application is composed by three services written in Go:
 
 The Store service must use Dapr Workflows to orchestrate the pizza order flow.
 The Kitchen and delivery services must use Dapr Pub/Sub to provide updates to the Store service.
+
+## Best practices
+Frontend: 
+
+Backend:
+- Always keep update the docker-compose.yaml file with all the services of the application.
+- Run `./scripts/test-docker-compose.sh` to validate docker-compose changes before committing.
+- Provide Kubernetes manifests for each service and infrastructure components.

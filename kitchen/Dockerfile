@@ -13,7 +13,7 @@ RUN go mod download
 COPY . .
 
 # Build the kitchen service
-RUN CGO_ENABLED=0 GOOS=linux go build -o kitchen ./kitchen/cmd/
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/bin/kitchen ./kitchen/cmd/
 
 # Runtime stage
 FROM alpine:latest
@@ -21,7 +21,7 @@ FROM alpine:latest
 WORKDIR /app
 
 # Copy the binary from builder
-COPY --from=builder /app/kitchen .
+COPY --from=builder /app/bin/kitchen .
 
 # Expose port
 EXPOSE 8081

@@ -13,7 +13,7 @@ RUN go mod download
 COPY . .
 
 # Build the store service
-RUN CGO_ENABLED=0 GOOS=linux go build -o store ./store/cmd/
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/bin/store ./store/cmd/
 
 # Runtime stage
 FROM alpine:latest
@@ -21,7 +21,7 @@ FROM alpine:latest
 WORKDIR /app
 
 # Copy the binary from builder
-COPY --from=builder /app/store .
+COPY --from=builder /app/bin/store .
 
 # Expose port
 EXPOSE 8080
