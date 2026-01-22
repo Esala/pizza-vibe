@@ -1,15 +1,14 @@
 import type { NextConfig } from "next";
 
+const storeUrl = process.env.STORE_SERVICE_URL || 'http://localhost:8080';
+
 const nextConfig: NextConfig = {
-  async headers() {
+  output: 'standalone',
+  async rewrites() {
     return [
       {
         source: '/api/:path*',
-        headers: [
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET,POST,PUT,DELETE,OPTIONS' },
-          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
-        ],
+        destination: `${storeUrl}/:path*`,
       },
     ];
   },
