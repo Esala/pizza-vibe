@@ -54,6 +54,7 @@ The Kitchen and delivery services must use Dapr Pub/Sub to provide updates to th
 Frontend: 
 - Everytime that you send a request to the store service validate the data types to make sure that the request is valid.
 - Use the store service data types (@store/models.go) to create mock data for the jest tests.
+- Always use Fetch to call other services using http.
 
 Backend:
 - Always keep update the docker-compose.yaml file with all the services of the application.
