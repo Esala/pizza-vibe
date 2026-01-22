@@ -20,7 +20,7 @@ export default function Home() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          items: [{ pizza_type: pizzaType, quantity: quantity }],
+          orderItems: [{ pizzaType: pizzaType, quantity: quantity }],
         }),
       });
 

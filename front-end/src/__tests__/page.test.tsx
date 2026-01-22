@@ -34,7 +34,7 @@ describe('Home Page', () => {
     const user = userEvent.setup();
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ id: 'test-order-id', status: 'pending' }),
+      json: async () => ({ orderId: 'test-order-id', orderStatus: 'pending' }),
     });
 
     render(<Home />);
@@ -55,7 +55,7 @@ describe('Home Page', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          items: [{ pizza_type: 'Margherita', quantity: 2 }],
+          orderItems: [{ pizzaType: 'Margherita', quantity: 2 }],
         }),
       });
     });
@@ -65,7 +65,7 @@ describe('Home Page', () => {
     const user = userEvent.setup();
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ id: 'test-order-id', status: 'pending' }),
+      json: async () => ({ orderId: 'test-order-id', orderStatus: 'pending' }),
     });
 
     render(<Home />);
