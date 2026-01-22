@@ -1,11 +1,14 @@
 import type { NextConfig } from "next";
 
+const storeUrl = process.env.STORE_SERVICE_URL || 'http://localhost:8080';
+
 const nextConfig: NextConfig = {
+  output: 'standalone',
   async rewrites() {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:8080/:path*',
+        destination: `${storeUrl}/:path*`,
       },
     ];
   },
