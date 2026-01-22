@@ -27,6 +27,12 @@ func main() {
 	// WebSocket endpoint
 	r.Get("/ws", s.HandleWebSocket)         // Real-time order updates
 
+	// Health check endpoint
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
 	log.Println("Store service starting on :8080")
 	log.Fatal(http.ListenAndServe(":8080", r))
 }
