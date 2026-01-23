@@ -1,3 +1,5 @@
+@import './tokens.css';
+
 * {
   box-sizing: border-box;
   padding: 0;
@@ -5,46 +7,30 @@
 }
 
 body {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-family-body), Arial, Helvetica, sans-serif;
+  font-size: var(--type-body-default-font-size);
+  line-height: var(--type-body-default-line-height);
+  font-weight: var(--type-body-default-font-weight);
 }
 
-.nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 2rem;
-  background-color: #e53935;
-  color: white;
+/* Headings */
+h1 {
+  font-family: var(--font-family-heading);
+  font-size: var(--type-heading-h1-font-size);
+  line-height: var(--type-heading-h1-line-height);
+  font-weight: var(--type-heading-h1-font-weight);
 }
 
-.nav-brand {
-  font-size: 1.5rem;
-  font-weight: bold;
+h2 {
+  font-family: var(--font-family-heading);
+  font-size: var(--type-heading-h2-font-size);
+  line-height: var(--type-heading-h2-line-height);
+  font-weight: var(--type-heading-h2-font-weight);
 }
 
-.nav-links {
-  display: flex;
-  list-style: none;
-  gap: 1rem;
-}
-
-.nav-link {
-  color: white;
-  text-decoration: none;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-}
-
-.nav-link:hover {
-  background-color: rgba(255, 255, 255, 0.2);
-}
-
-.nav-link.active {
-  background-color: rgba(255, 255, 255, 0.3);
-  font-weight: bold;
-}
-
-main {
-  padding: 2rem;
+h3 {
+  font-family: var(--font-family-heading);
+  font-size: var(--type-heading-h3-font-size);
+  line-height: var(--type-heading-h3-line-height);
+  font-weight: var(--type-heading-h3-font-weight);
 }

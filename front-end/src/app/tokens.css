@@ -1,0 +1,28 @@
+:root {
+  /* Typography - Font Families */
+  --font-family-heading: var(--font-eczar), 'Eczar', serif;
+  --font-family-body: var(--font-eczar), 'Eczar', serif;
+
+  /* Typography - Headings */
+  --type-heading-h1-font-size: 60px;
+  --type-heading-h1-line-height: 60px;
+  --type-heading-h1-font-weight: 600;
+
+  --type-heading-h2-font-size: 40px;
+  --type-heading-h2-line-height: 44px;
+  --type-heading-h2-font-weight: 600;
+
+  --type-heading-h3-font-size: 22px;
+  --type-heading-h3-line-height: 28px;
+  --type-heading-h3-font-weight: 600;
+
+  /* Typography - Body */
+  --type-body-default-font-size: 18px;
+  --type-body-default-line-height: 28px;
+  --type-body-default-font-weight: 400;
+
+  /* Spacing */
+  --space-padding: 32px;
+  --space-gap: 32px;
+  --space-margin: 32px;
+}
