@@ -21,11 +21,11 @@ func main() {
 	r.Use(middleware.Recoverer)
 
 	// REST endpoints
-	r.Post("/order", s.HandleCreateOrder)   // Create a new pizza order
-	r.Post("/events", s.HandleEvent)        // Receive events from kitchen/delivery
+	r.Post("/order", s.HandleCreateOrder) // Create a new pizza order
+	r.Post("/events", s.HandleEvent)      // Receive events from kitchen/delivery
 
 	// WebSocket endpoint
-	r.Get("/ws", s.HandleWebSocket)         // Real-time order updates
+	r.Get("/ws", s.HandleWebSocket) // Real-time order updates
 
 	// Health check endpoint
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {

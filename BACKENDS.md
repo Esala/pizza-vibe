@@ -48,3 +48,29 @@ Requirements:
 6. Add instruction on how to run all the services in the README.md file at the root directory
 
 Output <promise>DONE</promise> when all tests green." --max-iterations 25 --completion-promise "DONE"
+
+
+## Implement Feature in Store
+
+/ralph-loop:ralph-loop "Implement calling kitchen and exchange events using TDD.
+
+Process:
+1. Write failing test for next requirement
+2. Implement minimal code to pass
+3. Run tests
+4. If failing, fix and retry
+5. Refactor if needed
+6. Repeat for all requirements
+
+Requirements: 
+- For the store service: 
+  - Return the Order ID so it can be used to track the order in the frontend application
+  - Call the kitchen service to cook the order when the order is placed passing the orderId and orderItems
+  - Accept update and Done events from the kitchen service to track the order status. Keep track of events per orderId
+  - When a done event is received, update the order status to COOKED
+- For the kitchen service: 
+  - Print the amount of time it took to cook each order item
+  - Send update events to the store service every second while the order is cooking. Events are sent using HTTP to the the store service /events endpoint
+  - Send a DONE event when the order is done cooking
+
+Output <promise>DONE</promise> when all tests green." --max-iterations 20 --completion-promise "DONE"
