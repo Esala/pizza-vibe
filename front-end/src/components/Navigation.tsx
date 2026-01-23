@@ -14,15 +14,12 @@ export default function Navigation() {
   ];
 
   return (
-    <nav className="nav">
-      <div className="nav-brand">Pizza Vibe</div>
-      <ul className="nav-links">
+    <nav>
+      <div>Pizza Vibe</div>
+      <ul>
         {navItems.map((item) => (
           <li key={item.href}>
-            <Link
-              href={item.href}
-              className={pathname === item.href ? 'nav-link active' : 'nav-link'}
-            >
+            <Link href={item.href}>
               {item.label}
             </Link>
           </li>

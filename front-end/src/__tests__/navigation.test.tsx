@@ -28,20 +28,4 @@ describe('Navigation', () => {
     expect(screen.getByRole('link', { name: /management/i })).toHaveAttribute('href', '/management');
   });
 
-  it('highlights the active link', () => {
-    render(<Navigation />);
-    const orderLink = screen.getByRole('link', { name: /order/i });
-    expect(orderLink).toHaveClass('active');
-  });
-
-  it('non-active links do not have active class', () => {
-    render(<Navigation />);
-    const kitchenLink = screen.getByRole('link', { name: /kitchen/i });
-    const deliveryLink = screen.getByRole('link', { name: /delivery/i });
-    const managementLink = screen.getByRole('link', { name: /management/i });
-
-    expect(kitchenLink).not.toHaveClass('active');
-    expect(deliveryLink).not.toHaveClass('active');
-    expect(managementLink).not.toHaveClass('active');
-  });
 });
