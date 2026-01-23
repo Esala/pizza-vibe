@@ -3,17 +3,17 @@ services:
     build:
       context: ./front-end
       dockerfile: Dockerfile
-      args:
-        STORE_SERVICE_URL: http://store:8080
     ports:
       - "3000:3000"
+    environment:
+      - STORE_SERVICE_URL=http://store:8080
     networks:
       - pizza-network
     depends_on:
       store:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/"]
       interval: 2s
       timeout: 10s
       retries: 3
