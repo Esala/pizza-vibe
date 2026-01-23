@@ -22,7 +22,9 @@ func main() {
 
 	// REST endpoints
 	r.Post("/order", s.HandleCreateOrder) // Create a new pizza order
+	r.Get("/orders", s.HandleGetOrders)   // Get all orders
 	r.Post("/events", s.HandleEvent)      // Receive events from kitchen/delivery
+	r.Get("/events", s.HandleGetEvents)   // Get events for an order
 
 	// WebSocket endpoint
 	r.Get("/ws", s.HandleWebSocket) // Real-time order updates

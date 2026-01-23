@@ -361,3 +361,217 @@ func TestDoneEventUpdatesStatusToCooked(t *testing.T) {
 		t.Errorf("expected OrderStatus 'COOKED', got '%s'", order.OrderStatus)
 	}
 }
+
+// TestGetOrders verifies that GET /orders returns all orders.
+func TestGetOrders(t *testing.T) {
+	store := NewStore()
+	router := chi.NewRouter()
+	router.Post("/order", store.HandleCreateOrder)
+	router.Get("/orders", store.HandleGetOrders)
+
+	// Create two orders
+	orderReq1 := CreateOrderRequest{
+		OrderItems: []OrderItem{
+			{PizzaType: "Margherita", Quantity: 2},
+		},
+		OrderData: "Order 1",
+	}
+	orderReq2 := CreateOrderRequest{
+		OrderItems: []OrderItem{
+			{PizzaType: "Pepperoni", Quantity: 1},
+		},
+		OrderData: "Order 2",
+	}
+
+	body1, _ := json.Marshal(orderReq1)
+	req1 := httptest.NewRequest(http.MethodPost, "/order", bytes.NewReader(body1))
+	req1.Header.Set("Content-Type", "application/json")
+	rec1 := httptest.NewRecorder()
+	router.ServeHTTP(rec1, req1)
+
+	body2, _ := json.Marshal(orderReq2)
+	req2 := httptest.NewRequest(http.MethodPost, "/order", bytes.NewReader(body2))
+	req2.Header.Set("Content-Type", "application/json")
+	rec2 := httptest.NewRecorder()
+	router.ServeHTTP(rec2, req2)
+
+	// GET /orders
+	getReq := httptest.NewRequest(http.MethodGet, "/orders", nil)
+	getRec := httptest.NewRecorder()
+	router.ServeHTTP(getRec, getReq)
+
+	if getRec.Code != http.StatusOK {
+		t.Errorf("expected status 200 OK, got %d", getRec.Code)
+	}
+
+	var orders []Order
+	err := json.Unmarshal(getRec.Body.Bytes(), &orders)
+	if err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if len(orders) != 2 {
+		t.Errorf("expected 2 orders, got %d", len(orders))
+	}
+}
+
+// TestGetOrdersEmpty verifies that GET /orders returns empty array when no orders exist.
+func TestGetOrdersEmpty(t *testing.T) {
+	store := NewStore()
+	router := chi.NewRouter()
+	router.Get("/orders", store.HandleGetOrders)
+
+	req := httptest.NewRequest(http.MethodGet, "/orders", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200 OK, got %d", rec.Code)
+	}
+
+	var orders []Order
+	err := json.Unmarshal(rec.Body.Bytes(), &orders)
+	if err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if len(orders) != 0 {
+		t.Errorf("expected 0 orders, got %d", len(orders))
+	}
+}
+
+// TestGetEventsForOrder verifies that GET /events returns events for a specific order.
+func TestGetEventsForOrder(t *testing.T) {
+	store := NewStore()
+	router := chi.NewRouter()
+	router.Post("/order", store.HandleCreateOrder)
+	router.Post("/events", store.HandleEvent)
+	router.Get("/events", store.HandleGetEvents)
+
+	// Create an order
+	orderReq := CreateOrderRequest{
+		OrderItems: []OrderItem{
+			{PizzaType: "Margherita", Quantity: 1},
+		},
+		OrderData: "Test order",
+	}
+	orderBody, _ := json.Marshal(orderReq)
+	createReq := httptest.NewRequest(http.MethodPost, "/order", bytes.NewReader(orderBody))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRec := httptest.NewRecorder()
+	router.ServeHTTP(createRec, createReq)
+
+	var createdOrder Order
+	json.Unmarshal(createRec.Body.Bytes(), &createdOrder)
+
+	// Send multiple events
+	events := []OrderEvent{
+		{OrderID: createdOrder.OrderID, Status: "cooking", Source: "kitchen"},
+		{OrderID: createdOrder.OrderID, Status: "in oven", Source: "kitchen"},
+		{OrderID: createdOrder.OrderID, Status: "DONE", Source: "kitchen"},
+	}
+
+	for _, event := range events {
+		eventBody, _ := json.Marshal(event)
+		req := httptest.NewRequest(http.MethodPost, "/events", bytes.NewReader(eventBody))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+	}
+
+	// GET /events?orderId={orderId}
+	getReq := httptest.NewRequest(http.MethodGet, "/events?orderId="+createdOrder.OrderID.String(), nil)
+	getRec := httptest.NewRecorder()
+	router.ServeHTTP(getRec, getReq)
+
+	if getRec.Code != http.StatusOK {
+		t.Errorf("expected status 200 OK, got %d", getRec.Code)
+	}
+
+	var returnedEvents []OrderEvent
+	err := json.Unmarshal(getRec.Body.Bytes(), &returnedEvents)
+	if err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if len(returnedEvents) != 3 {
+		t.Errorf("expected 3 events, got %d", len(returnedEvents))
+	}
+
+	if returnedEvents[0].Status != "cooking" {
+		t.Errorf("expected first event status 'cooking', got '%s'", returnedEvents[0].Status)
+	}
+}
+
+// TestGetEventsWithoutOrderId verifies that GET /events returns 400 when orderId is missing.
+func TestGetEventsWithoutOrderId(t *testing.T) {
+	store := NewStore()
+	router := chi.NewRouter()
+	router.Get("/events", store.HandleGetEvents)
+
+	req := httptest.NewRequest(http.MethodGet, "/events", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 Bad Request, got %d", rec.Code)
+	}
+}
+
+// TestGetEventsInvalidOrderId verifies that GET /events returns 400 for invalid UUID.
+func TestGetEventsInvalidOrderId(t *testing.T) {
+	store := NewStore()
+	router := chi.NewRouter()
+	router.Get("/events", store.HandleGetEvents)
+
+	req := httptest.NewRequest(http.MethodGet, "/events?orderId=invalid-uuid", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 Bad Request, got %d", rec.Code)
+	}
+}
+
+// TestGetEventsEmptyForOrder verifies that GET /events returns empty array for order without events.
+func TestGetEventsEmptyForOrder(t *testing.T) {
+	store := NewStore()
+	router := chi.NewRouter()
+	router.Post("/order", store.HandleCreateOrder)
+	router.Get("/events", store.HandleGetEvents)
+
+	// Create an order but don't send any events
+	orderReq := CreateOrderRequest{
+		OrderItems: []OrderItem{
+			{PizzaType: "Margherita", Quantity: 1},
+		},
+		OrderData: "Test order",
+	}
+	orderBody, _ := json.Marshal(orderReq)
+	createReq := httptest.NewRequest(http.MethodPost, "/order", bytes.NewReader(orderBody))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRec := httptest.NewRecorder()
+	router.ServeHTTP(createRec, createReq)
+
+	var createdOrder Order
+	json.Unmarshal(createRec.Body.Bytes(), &createdOrder)
+
+	// GET /events?orderId={orderId}
+	getReq := httptest.NewRequest(http.MethodGet, "/events?orderId="+createdOrder.OrderID.String(), nil)
+	getRec := httptest.NewRecorder()
+	router.ServeHTTP(getRec, getReq)
+
+	if getRec.Code != http.StatusOK {
+		t.Errorf("expected status 200 OK, got %d", getRec.Code)
+	}
+
+	var returnedEvents []OrderEvent
+	err := json.Unmarshal(getRec.Body.Bytes(), &returnedEvents)
+	if err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if len(returnedEvents) != 0 {
+		t.Errorf("expected 0 events, got %d", len(returnedEvents))
+	}
+}

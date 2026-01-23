@@ -50,7 +50,7 @@ Requirements:
 Output <promise>DONE</promise> when all tests green." --max-iterations 25 --completion-promise "DONE"
 
 
-## Implement Feature in Store
+## Implement Kitchen Interaction Feature in Store
 
 /ralph-loop:ralph-loop "Implement calling kitchen and exchange events using TDD.
 
@@ -72,5 +72,28 @@ Requirements:
   - Print the amount of time it took to cook each order item
   - Send update events to the store service every second while the order is cooking. Events are sent using HTTP to the the store service /events endpoint
   - Send a DONE event when the order is done cooking
+
+Output <promise>DONE</promise> when all tests green." --max-iterations 20 --completion-promise "DONE"
+
+
+## Implement Event and Order List in Management Page Feature in Store
+
+/ralph-loop:ralph-loop "Implement list events and list orders in management page using TDD.
+
+Process:
+1. Write failing test for next requirement
+2. Implement minimal code to pass
+3. Run tests
+4. If failing, fix and retry
+5. Refactor if needed
+6. Repeat for all requirements
+
+Requirements:
+- For the store service:
+    - Make sure that there is an endpoint that returns all the orders (GET /orders)
+    - Make sure that there is an endpoint that returns all events per order (GET /events)
+- For front-end
+    - in the management page consume both endpoints to list all the orders and their status
+    - all the events per order, when the order is selected.
 
 Output <promise>DONE</promise> when all tests green." --max-iterations 20 --completion-promise "DONE"

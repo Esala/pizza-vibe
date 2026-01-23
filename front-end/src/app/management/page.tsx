@@ -8,6 +8,24 @@ interface ServiceStatus {
   url: string;
 }
 
+interface OrderItem {
+  pizzaType: string;
+  quantity: number;
+}
+
+interface Order {
+  orderId: string;
+  orderItems: OrderItem[];
+  orderData: string;
+  orderStatus: string;
+}
+
+interface OrderEvent {
+  orderId: string;
+  status: string;
+  source: string;
+}
+
 export default function ManagementPage() {
   const [services, setServices] = useState<ServiceStatus[]>([
     { name: 'Store Service', status: 'unhealthy', url: '/api/health/store' },
@@ -15,6 +33,9 @@ export default function ManagementPage() {
     { name: 'Delivery Service', status: 'unhealthy', url: '/api/health/delivery' },
   ]);
   const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [events, setEvents] = useState<OrderEvent[]>([]);
 
   useEffect(() => {
     const checkServices = async () => {
@@ -39,8 +60,34 @@ export default function ManagementPage() {
       setLoading(false);
     };
 
+    const fetchOrders = async () => {
+      try {
+        const response = await fetch('/api/orders');
+        if (response.ok) {
+          const data = await response.json();
+          setOrders(data);
+        }
+      } catch {
+        // Handle error silently
+      }
+    };
+
     checkServices();
+    fetchOrders();
   }, []);
+
+  const handleOrderClick = async (orderId: string) => {
+    setSelectedOrderId(orderId);
+    try {
+      const response = await fetch(`/api/events?orderId=${orderId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setEvents(data);
+      }
+    } catch {
+      setEvents([]);
+    }
+  };
 
   if (loading) {
     return (
@@ -63,6 +110,68 @@ export default function ManagementPage() {
           </div>
         ))}
       </div>
+
+      <h2>Orders</h2>
+      {orders.length === 0 ? (
+        <p>No orders found</p>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Items</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map((order) => (
+              <tr
+                key={order.orderId}
+                data-testid="order-row"
+                onClick={() => handleOrderClick(order.orderId)}
+                style={{ cursor: 'pointer' }}
+              >
+                <td>{order.orderId.substring(0, 8)}...</td>
+                <td>
+                  {order.orderItems.map((item, idx) => (
+                    <span key={idx}>
+                      {item.pizzaType} x{item.quantity}
+                      {idx < order.orderItems.length - 1 ? ', ' : ''}
+                    </span>
+                  ))}
+                </td>
+                <td>{order.orderStatus}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {selectedOrderId && (
+        <>
+          <h2>Events</h2>
+          {events.length === 0 ? (
+            <p>No events for this order</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Source</th>
+                </tr>
+              </thead>
+              <tbody>
+                {events.map((event, idx) => (
+                  <tr key={idx}>
+                    <td>{event.status}</td>
+                    <td>{event.source}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
+      )}
     </main>
   );
 }

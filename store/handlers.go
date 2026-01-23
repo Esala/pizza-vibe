@@ -178,3 +178,40 @@ func (s *Store) GetOrderEvents(orderID uuid.UUID) []OrderEvent {
 	defer s.mu.RUnlock()
 	return s.events[orderID]
 }
+
+// HandleGetOrders handles GET /orders requests to retrieve all orders.
+func (s *Store) HandleGetOrders(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	orders := make([]*Order, 0, len(s.orders))
+	for _, order := range s.orders {
+		orders = append(orders, order)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(orders)
+}
+
+// HandleGetEvents handles GET /events requests to retrieve events for a specific order.
+func (s *Store) HandleGetEvents(w http.ResponseWriter, r *http.Request) {
+	orderIDStr := r.URL.Query().Get("orderId")
+	if orderIDStr == "" {
+		http.Error(w, "orderId query parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	orderID, err := uuid.Parse(orderIDStr)
+	if err != nil {
+		http.Error(w, "Invalid orderId format", http.StatusBadRequest)
+		return
+	}
+
+	events := s.GetOrderEvents(orderID)
+	if events == nil {
+		events = []OrderEvent{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(events)
+}

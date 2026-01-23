@@ -51,10 +51,14 @@ The Store service must use Dapr Workflows to orchestrate the pizza order flow.
 The Kitchen and delivery services must use Dapr Pub/Sub to provide updates to the Store service.
 
 ## Best practices
+
+General: 
+- Do not do more than what is asked for
 Frontend: 
 - Everytime that you send a request to the store service validate the data types to make sure that the request is valid.
 - Use the store service data types (@store/models.go) to create mock data for the jest tests.
 - Always use Fetch to call other services using http.
+- Do not add styles unless it is specified by the user
 
 Backend:
 - Always keep update the docker-compose.yaml file with all the services of the application.
