@@ -2,7 +2,7 @@ package store
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 
@@ -51,7 +51,7 @@ func (h *WebSocketHub) Broadcast(message []byte) {
 	for conn := range h.clients {
 		err := conn.WriteMessage(websocket.TextMessage, message)
 		if err != nil {
-			log.Printf("WebSocket write error: %v", err)
+			slog.Error("websocket write error", "error", err)
 		}
 	}
 }
@@ -68,7 +68,7 @@ var upgrader = websocket.Upgrader{
 func (s *Store) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("WebSocket upgrade error: %v", err)
+		slog.Error("websocket upgrade error", "error", err)
 		return
 	}
 
@@ -94,7 +94,7 @@ func (s *Store) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 func (s *Store) BroadcastOrderUpdate(update OrderUpdate) {
 	message, err := json.Marshal(update)
 	if err != nil {
-		log.Printf("Failed to marshal order update: %v", err)
+		slog.Error("failed to marshal order update", "error", err)
 		return
 	}
 	s.hub.Broadcast(message)

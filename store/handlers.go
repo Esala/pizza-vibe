@@ -2,9 +2,12 @@ package store
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -38,7 +41,9 @@ func NewStore() *Store {
 		events:     make(map[uuid.UUID][]OrderEvent),
 		hub:        NewWebSocketHub(),
 		kitchenURL: "http://kitchen:8081",
-		httpClient: &http.Client{},
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 
@@ -75,8 +80,10 @@ func (s *Store) HandleCreateOrder(w http.ResponseWriter, r *http.Request) {
 	s.orders[order.OrderID] = order
 	s.mu.Unlock()
 
-	// Call kitchen service to cook the order
-	go s.callKitchenService(order)
+	slog.Info("order created", "orderId", order.OrderID, "items", len(order.OrderItems))
+
+	// Call kitchen service to cook the order (background; detach from request context)
+	go s.callKitchenService(context.Background(), order)
 
 	// Return the created order
 	w.Header().Set("Content-Type", "application/json")
@@ -85,7 +92,7 @@ func (s *Store) HandleCreateOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 // callKitchenService sends a cook request to the kitchen service.
-func (s *Store) callKitchenService(order *Order) {
+func (s *Store) callKitchenService(ctx context.Context, order *Order) {
 	cookReq := CookRequest{
 		OrderID:    order.OrderID,
 		OrderItems: order.OrderItems,
@@ -93,14 +100,27 @@ func (s *Store) callKitchenService(order *Order) {
 
 	body, err := json.Marshal(cookReq)
 	if err != nil {
+		slog.Error("failed to marshal cook request", "orderId", order.OrderID, "error", err)
 		return
 	}
 
-	resp, err := s.httpClient.Post(s.kitchenURL+"/cook", "application/json", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.kitchenURL+"/cook", bytes.NewReader(body))
 	if err != nil {
+		slog.Error("failed to create kitchen request", "orderId", order.OrderID, "error", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		slog.Error("failed to call kitchen service", "orderId", order.OrderID, "error", err)
 		return
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusAccepted {
+		slog.Warn("kitchen service returned unexpected status", "orderId", order.OrderID, "status", resp.StatusCode)
+	}
 }
 
 // GetOrder retrieves an order by its UUID.
@@ -154,6 +174,8 @@ func (s *Store) HandleEvent(w http.ResponseWriter, r *http.Request) {
 
 	// Track the event
 	s.trackEvent(event)
+
+	slog.Info("order event received", "orderId", event.OrderID, "status", status, "source", event.Source)
 
 	// Broadcast the update to WebSocket clients
 	s.BroadcastOrderUpdate(OrderUpdate{
