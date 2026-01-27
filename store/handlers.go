@@ -24,23 +24,31 @@ type CookRequest struct {
 	OrderItems []OrderItem `json:"orderItems"`
 }
 
+// DeliverRequest represents the request sent to the delivery service.
+type DeliverRequest struct {
+	OrderID    uuid.UUID   `json:"orderId"`
+	OrderItems []OrderItem `json:"orderItems"`
+}
+
 // Store manages pizza orders and provides HTTP handlers for the store service.
 type Store struct {
-	mu         sync.RWMutex
-	orders     map[uuid.UUID]*Order
-	events     map[uuid.UUID][]OrderEvent
-	hub        *WebSocketHub
-	kitchenURL string
-	httpClient *http.Client
+	mu          sync.RWMutex
+	orders      map[uuid.UUID]*Order
+	events      map[uuid.UUID][]OrderEvent
+	hub         *WebSocketHub
+	kitchenURL  string
+	deliveryURL string
+	httpClient  *http.Client
 }
 
 // NewStore creates a new Store instance with initialized order storage and WebSocket hub.
 func NewStore() *Store {
 	return &Store{
-		orders:     make(map[uuid.UUID]*Order),
-		events:     make(map[uuid.UUID][]OrderEvent),
-		hub:        NewWebSocketHub(),
-		kitchenURL: "http://kitchen:8081",
+		orders:      make(map[uuid.UUID]*Order),
+		events:      make(map[uuid.UUID][]OrderEvent),
+		hub:         NewWebSocketHub(),
+		kitchenURL:  "http://kitchen:8081",
+		deliveryURL: "http://delivery:8082",
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -50,6 +58,11 @@ func NewStore() *Store {
 // SetKitchenURL sets the URL of the kitchen service.
 func (s *Store) SetKitchenURL(url string) {
 	s.kitchenURL = url
+}
+
+// SetDeliveryURL sets the URL of the delivery service.
+func (s *Store) SetDeliveryURL(url string) {
+	s.deliveryURL = url
 }
 
 // HandleCreateOrder handles POST /order requests to create new pizza orders.
@@ -153,6 +166,8 @@ type OrderEvent struct {
 // HandleEvent handles POST /events requests to receive order updates
 // from kitchen and delivery services. It updates the order status and
 // broadcasts the update to all connected WebSocket clients.
+// When a kitchen DONE event is received (mapped to COOKED), it calls
+// the delivery service to deliver the order.
 func (s *Store) HandleEvent(w http.ResponseWriter, r *http.Request) {
 	var event OrderEvent
 	if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
@@ -184,7 +199,47 @@ func (s *Store) HandleEvent(w http.ResponseWriter, r *http.Request) {
 		Source:  event.Source,
 	})
 
+	// If the order is cooked, call the delivery service
+	if status == "COOKED" {
+		order, exists := s.GetOrder(event.OrderID)
+		if exists {
+			go s.callDeliveryService(context.Background(), order)
+		}
+	}
+
 	w.WriteHeader(http.StatusOK)
+}
+
+// callDeliveryService sends a deliver request to the delivery service.
+func (s *Store) callDeliveryService(ctx context.Context, order *Order) {
+	deliverReq := DeliverRequest{
+		OrderID:    order.OrderID,
+		OrderItems: order.OrderItems,
+	}
+
+	body, err := json.Marshal(deliverReq)
+	if err != nil {
+		slog.Error("failed to marshal deliver request", "orderId", order.OrderID, "error", err)
+		return
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.deliveryURL+"/deliver", bytes.NewReader(body))
+	if err != nil {
+		slog.Error("failed to create delivery request", "orderId", order.OrderID, "error", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		slog.Error("failed to call delivery service", "orderId", order.OrderID, "error", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusAccepted {
+		slog.Warn("delivery service returned unexpected status", "orderId", order.OrderID, "status", resp.StatusCode)
+	}
 }
 
 // trackEvent stores an event in the order's event history.

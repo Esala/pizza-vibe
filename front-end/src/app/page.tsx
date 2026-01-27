@@ -2,6 +2,11 @@
 
 import { useState, useRef, useCallback, useEffect, FormEvent } from 'react';
 
+interface OrderItem {
+  pizzaType: string;
+  quantity: number;
+}
+
 interface WebSocketEvent {
   orderId: string;
   status: string;
@@ -16,6 +21,7 @@ function generateClientId(): string {
 export default function Home() {
   const [pizzaType, setPizzaType] = useState('Margherita');
   const [quantity, setQuantity] = useState(1);
+  const [cart, setCart] = useState<OrderItem[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
@@ -61,8 +67,33 @@ export default function Home() {
     };
   }, []);
 
+  const handleAddToCart = () => {
+    setCart((prevCart) => {
+      const existingIndex = prevCart.findIndex(
+        (item) => item.pizzaType === pizzaType
+      );
+      if (existingIndex >= 0) {
+        const updated = [...prevCart];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          quantity: updated[existingIndex].quantity + quantity,
+        };
+        return updated;
+      }
+      return [...prevCart, { pizzaType, quantity }];
+    });
+  };
+
+  const handleRemoveFromCart = (pizzaTypeToRemove: string) => {
+    setCart((prevCart) =>
+      prevCart.filter((item) => item.pizzaType !== pizzaTypeToRemove)
+    );
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (cart.length === 0) return;
+
     setMessage(null);
     setIsError(false);
     setOrderId(null);
@@ -78,7 +109,7 @@ export default function Home() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          orderItems: [{ pizzaType: pizzaType, quantity: quantity }],
+          orderItems: cart,
         }),
       });
 
@@ -87,6 +118,7 @@ export default function Home() {
         setOrderId(data.orderId);
         setMessage('Order placed successfully!');
         setIsError(false);
+        setCart([]);
       } else {
         setMessage('Failed to place order');
         setIsError(true);
@@ -124,7 +156,35 @@ export default function Home() {
             onChange={(e) => setQuantity(parseInt(e.target.value, 10) || 1)}
           />
         </div>
-        <button type="submit">Place Order</button>
+        <button type="button" onClick={handleAddToCart}>Add to Cart</button>
+        {cart.length > 0 && (
+          <table data-testid="cart">
+            <thead>
+              <tr>
+                <th>Pizza Type</th>
+                <th>Quantity</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cart.map((item) => (
+                <tr key={item.pizzaType}>
+                  <td>{item.pizzaType}</td>
+                  <td>{item.quantity}</td>
+                  <td>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFromCart(item.pizzaType)}
+                    >
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <button type="submit" disabled={cart.length === 0}>Place Order</button>
       </form>
       {message && (
         <p role="status" style={{ color: isError ? 'red' : 'green' }}>

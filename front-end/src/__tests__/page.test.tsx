@@ -30,6 +30,22 @@ function createMockWebSocket() {
   return { mockWs, MockWebSocket };
 }
 
+// Helper: add an item to the cart
+async function addItemToCart(
+  user: ReturnType<typeof userEvent.setup>,
+  pizzaType: string,
+  quantity: number
+) {
+  const pizzaSelect = screen.getByLabelText(/pizza type/i);
+  const quantityInput = screen.getByLabelText(/quantity/i);
+  const addToCartButton = screen.getByRole('button', { name: /add to cart/i });
+
+  await user.selectOptions(pizzaSelect, pizzaType);
+  await user.tripleClick(quantityInput);
+  await user.keyboard(String(quantity));
+  await user.click(addToCartButton);
+}
+
 describe('Home Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -66,13 +82,10 @@ describe('Home Page', () => {
 
     render(<Home />);
 
-    const pizzaSelect = screen.getByLabelText(/pizza type/i);
-    const quantityInput = screen.getByLabelText(/quantity/i);
-    const submitButton = screen.getByRole('button', { name: /place order/i });
+    // Add item to cart first
+    await addItemToCart(user, 'Margherita', 2);
 
-    await user.selectOptions(pizzaSelect, 'Margherita');
-    await user.tripleClick(quantityInput);
-    await user.keyboard('2');
+    const submitButton = screen.getByRole('button', { name: /place order/i });
     await user.click(submitButton);
 
     await waitFor(() => {
@@ -99,13 +112,10 @@ describe('Home Page', () => {
 
     render(<Home />);
 
-    const pizzaSelect = screen.getByLabelText(/pizza type/i);
-    const quantityInput = screen.getByLabelText(/quantity/i);
-    const submitButton = screen.getByRole('button', { name: /place order/i });
+    // Add item to cart first
+    await addItemToCart(user, 'Margherita', 2);
 
-    await user.selectOptions(pizzaSelect, 'Margherita');
-    await user.tripleClick(quantityInput);
-    await user.keyboard('2');
+    const submitButton = screen.getByRole('button', { name: /place order/i });
     await user.click(submitButton);
 
     await waitFor(() => {
@@ -126,6 +136,10 @@ describe('Home Page', () => {
     });
 
     render(<Home />);
+
+    // Add item to cart first
+    await addItemToCart(user, 'Margherita', 1);
+
     const submitButton = screen.getByRole('button', { name: /place order/i });
     await user.click(submitButton);
 
@@ -154,6 +168,10 @@ describe('Home Page', () => {
     });
 
     render(<Home />);
+
+    // Add item to cart first
+    await addItemToCart(user, 'Margherita', 1);
+
     const submitButton = screen.getByRole('button', { name: /place order/i });
     await user.click(submitButton);
 
@@ -176,6 +194,10 @@ describe('Home Page', () => {
     });
 
     render(<Home />);
+
+    // Add item to cart first
+    await addItemToCart(user, 'Margherita', 1);
+
     const submitButton = screen.getByRole('button', { name: /place order/i });
     await user.click(submitButton);
 
@@ -245,11 +267,10 @@ describe('Home Page', () => {
 
     render(<Home />);
 
-    const pizzaSelect = screen.getByLabelText(/pizza type/i);
-    const quantityInput = screen.getByLabelText(/quantity/i);
-    const submitButton = screen.getByRole('button', { name: /place order/i });
+    // Add item to cart first
+    await addItemToCart(user, 'Margherita', 1);
 
-    await user.selectOptions(pizzaSelect, 'Margherita');
+    const submitButton = screen.getByRole('button', { name: /place order/i });
     await user.click(submitButton);
 
     await waitFor(() => {

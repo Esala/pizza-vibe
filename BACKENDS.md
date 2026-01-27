@@ -124,3 +124,79 @@ Requirements:
     - Use a table format to display the events related to the order
 
 Output <promise>DONE</promise> when all tests green." --max-iterations 20 --completion-promise "DONE"
+
+
+## Delivery Service
+
+/ralph-loop:ralph-loop "Implement delivery service in Go using TDD.
+
+Process:
+1. Write failing test for next requirement
+2. Implement minimal code to pass
+3. Run tests
+4. If failing, fix and retry
+5. Refactor if needed
+6. Repeat for all requirements
+
+Requirements:
+1. Create a new directory called delivery and place all delivery service files inside
+2. The delivery service should expose the following endpoints:
+    1. POST endpoint /deliver to deliver and order to the customer
+    2. The payload should only be the orderId and orderItems
+    3. For each order delivery the service should notify the store service sending regular update events about the order delivery process
+    4. To simulate the order being delivered use a random time interval between 5 and 20 seconds, and send status updates every second.
+    5. The event updates should include which percentage of the delivery process is completed
+    6. When the delivery is done, send a DELIVERED event to the store service
+3. Use Go Chi for REST endpoints
+4. Document all code and progress
+5. Add the kitchen service to the docker-compose.yaml file that already exists in the root directory
+6. Add instruction on how to run all the services in the README.md file at the root directory
+
+Output <promise>DONE</promise> when all tests green." --max-iterations 25 --completion-promise "DONE"
+
+
+## Implement Delivery Interaction Feature in Store
+
+/ralph-loop:ralph-loop "Implement calling delivery and exchange events using TDD.
+
+Process:
+1. Write failing test for next requirement
+2. Implement minimal code to pass
+3. Run tests
+4. If failing, fix and retry
+5. Refactor if needed
+6. Repeat for all requirements
+
+Requirements:
+- For the store service:
+    - After the order is cooked by the kitchen service, call the delivery service to deliver the order to the customer
+    - Call the delivery service to deliver the order after the order COOKED passing the orderId and orderItems
+    - Accept update and Delivered events from the delivery service to track the order status. Keep track of events per orderId
+    - When a done event is received, update the order status to DELIVERED
+- For the delivery service:
+    - Print the amount of time it took to delivery the order 
+    - Send update events to the store service every second while the order is being delivered. Events are sent using HTTP to  the store service /events endpoint
+    - Send a DELIVERED event when the order is delivered
+
+Output <promise>DONE</promise> when all tests green." --max-iterations 20 --completion-promise "DONE"
+
+
+
+## Implement Pizzas Order Cart in Store
+
+/ralph-loop:ralph-loop "Implement pizza cart functionality in the frontend using TDD.
+
+Process:
+1. Write failing test for next requirement
+2. Implement minimal code to pass
+3. Run tests
+4. If failing, fix and retry
+5. Refactor if needed
+6. Repeat for all requirements
+
+Requirements:
+- Create cart functionality in the frontend application to add, remove and update the pizza items added to the order
+- The front end should enable the user to select multiple pizza types and quantity and add that to the order
+- Follow the data model defined in the store service for the Order and OrderItems 
+
+Output <promise>DONE</promise> when all tests green." --max-iterations 20 --completion-promise "DONE"
