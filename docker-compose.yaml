@@ -7,6 +7,8 @@ services:
       - "3000:3000"
     environment:
       - STORE_SERVICE_URL=http://store:8080
+      - OVEN_SERVICE_URL=http://oven:8085
+      - INVENTORY_SERVICE_URL=http://inventory:8084
     networks:
       - pizza-network
     depends_on:
@@ -62,6 +64,38 @@ services:
       - pizza-network
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  inventory:
+    build:
+      context: .
+      dockerfile: inventory/Dockerfile
+    ports:
+      - "8084:8084"
+    environment:
+      - PORT=8084
+    networks:
+      - pizza-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8084/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  oven:
+    build:
+      context: .
+      dockerfile: oven/Dockerfile
+    ports:
+      - "8085:8085"
+    environment:
+      - PORT=8085
+    networks:
+      - pizza-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8085/health"]
       interval: 30s
       timeout: 10s
       retries: 3

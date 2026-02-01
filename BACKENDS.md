@@ -200,3 +200,89 @@ Requirements:
 - Follow the data model defined in the store service for the Order and OrderItems 
 
 Output <promise>DONE</promise> when all tests green." --max-iterations 20 --completion-promise "DONE"
+
+
+## Implement Inventory Service 
+
+/ralph-loop:ralph-loop "Implement inventory service using TDD.
+
+Process:
+1. Write failing test for next requirement
+2. Implement minimal code to pass
+3. Run tests
+4. If failing, fix and retry
+5. Refactor if needed
+6. Repeat for all requirements
+
+Requirements:
+- Create inventory directory and place all inventory service files inside
+- The inventory service should expose the following endpoints:
+    - GET endpoint /inventory to return all the available items in the inventory
+    - GET endpoint /inventory/{item} to return the quantity of the item in the inventory
+    - POST endpoint /inventory/{item} to get one item from the inventory, this will decrease by one the quantity of that item
+      - If the quantity is 0, return an EMPTY
+      - If the quantity is not 0, return the ACQUIRED
+- Use Go Chi for REST endpoints
+- Document all code and progress
+- The inventory service should return the following inventory:
+    - Pepperoni: 10
+    - Pineapple: 10
+    - PizzaDough: 10
+    - Mozzarella: 10
+    - Sauce: 10
+
+Output <promise>DONE</promise> when all tests green." --max-iterations 20 --completion-promise "DONE"
+
+
+## Implement Oven Service
+
+/ralph-loop:ralph-loop "Implement oven service using TDD.
+
+Process:
+1. Write failing test for next requirement
+2. Implement minimal code to pass
+3. Run tests
+4. If failing, fix and retry
+5. Refactor if needed
+6. Repeat for all requirements
+
+Requirements:
+- Create oven directory and place all oven service files inside
+- The oven service represents a set of available ovens that can be used to cook the pizza items.
+- To cook in an oven, the user needs to aquire the oven by id and lock it
+- The oven service should expose the following endpoints:
+    - GET endpoint /ovens/ to return all the available ovens and their status
+    - GET endpoint /ovens/{ovenId} return the status of the oven
+    - POST endpoint /ovens/{ovenId} reserves and oven
+    - DELETE endpoint /ovens/{ovenId} releases the oven
+- To reserve an oven, the oven must be available and the user should be sent as a parameter
+- Each time that an operation is executed on an oven, the oven status should be updated and a timestamp should be recorded
+- The oven service should return the following oven status:
+    - AVAILABLE: the oven is available to be reserved
+    - RESERVED: the oven is reserved by the user
+- Use Go Chi for REST endpoints
+- Document all code and progress
+- Initially there should be 4 ovens available
+
+Output <promise>DONE</promise> when all tests green." --max-iterations 20 --completion-promise "DONE"
+
+
+## Implement basic pages for Oven and inventory Services
+
+/ralph-loop:ralph-loop "Implement basic pages for oven and inventory services on the frontend using TDD.
+
+Process:
+1. Write failing test for next requirement
+2. Implement minimal code to pass
+3. Run tests
+4. If failing, fix and retry
+5. Refactor if needed
+6. Repeat for all requirements
+
+Requirements:
+- Create a basic page for the oven service that shows the status of the ovens and allows the user to reserve and release an oven
+- Create a basic page for the inventory service that shows the inventory items and allows the user to acquire an item
+    - Implement the backend logic to add more quantity to the items in the inventory
+    - Implement a section in the inventory page to add more quantity to the items
+
+Output <promise>DONE</promise> when all tests green." --max-iterations 20 --completion-promise "DONE"
