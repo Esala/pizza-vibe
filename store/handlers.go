@@ -158,9 +158,12 @@ func (s *Store) UpdateOrderStatus(orderID uuid.UUID, status string) bool {
 
 // OrderEvent represents an event received from kitchen or delivery services.
 type OrderEvent struct {
-	OrderID uuid.UUID `json:"orderId"`
-	Status  string    `json:"status"`
-	Source  string    `json:"source"` // "kitchen" or "delivery"
+	OrderID   uuid.UUID `json:"orderId"`
+	Status    string    `json:"status"`
+	Source    string    `json:"source"` // "kitchen" or "delivery"
+	Message   string    `json:"message,omitempty"`
+	ToolName  string    `json:"toolName,omitempty"`
+	ToolInput string    `json:"toolInput,omitempty"`
 }
 
 // HandleEvent handles POST /events requests to receive order updates
@@ -194,9 +197,12 @@ func (s *Store) HandleEvent(w http.ResponseWriter, r *http.Request) {
 
 	// Broadcast the update to WebSocket clients
 	s.BroadcastOrderUpdate(OrderUpdate{
-		OrderID: event.OrderID,
-		Status:  status,
-		Source:  event.Source,
+		OrderID:   event.OrderID,
+		Status:    status,
+		Source:    event.Source,
+		Message:   event.Message,
+		ToolName:  event.ToolName,
+		ToolInput: event.ToolInput,
 	})
 
 	// If the order is cooked, call the delivery service

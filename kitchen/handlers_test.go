@@ -232,6 +232,196 @@ func TestCookCallsCookingAgentForEachPizza(t *testing.T) {
 	}
 }
 
+// TestParseSSEStreamWithoutSpace tests parsing SSE events in "data:value" format (no space after colon),
+// which is the format Quarkus RESTEasy Reactive produces.
+func TestParseSSEStreamWithoutSpace(t *testing.T) {
+	kitchen := NewKitchen()
+	updates := make(chan CookingUpdate, 10)
+
+	// Simulate Quarkus SSE format: "data:{json}\n\n" (no space after data:)
+	sseData := `data:{"type":"action","action":"checking_inventory","message":"Checking ingredients"}
+
+data:{"type":"action","action":"reserving_oven","message":"Reserving oven"}
+
+data:{"type":"result","action":"completed","message":"Done cooking"}
+
+`
+	body := bytes.NewReader([]byte(sseData))
+
+	go func() {
+		defer close(updates)
+		err := kitchen.parseSSEStream(body, updates)
+		if err != nil {
+			t.Errorf("parseSSEStream returned error: %v", err)
+		}
+	}()
+
+	var received []CookingUpdate
+	timeout := time.After(2 * time.Second)
+	for {
+		select {
+		case update, ok := <-updates:
+			if !ok {
+				goto done
+			}
+			received = append(received, update)
+		case <-timeout:
+			t.Fatal("timed out waiting for updates")
+		}
+	}
+done:
+	if len(received) != 3 {
+		t.Fatalf("expected 3 updates, got %d: %+v", len(received), received)
+	}
+	if received[0].Action != "checking_inventory" {
+		t.Errorf("expected first action 'checking_inventory', got %q", received[0].Action)
+	}
+	if received[1].Action != "reserving_oven" {
+		t.Errorf("expected second action 'reserving_oven', got %q", received[1].Action)
+	}
+	if received[2].Type != "result" {
+		t.Errorf("expected third type 'result', got %q", received[2].Type)
+	}
+}
+
+// TestParseSSEStreamMultiLineEvent tests parsing SSE events that include id: and event: fields
+// before the data: field, as some SSE implementations produce.
+func TestParseSSEStreamMultiLineEvent(t *testing.T) {
+	kitchen := NewKitchen()
+	updates := make(chan CookingUpdate, 10)
+
+	// Multi-line SSE events with id: and event: fields
+	sseData := "id:1\nevent:message\ndata:{\"type\":\"action\",\"action\":\"checking_inventory\",\"message\":\"Checking\"}\n\nid:2\nevent:message\ndata:{\"type\":\"result\",\"action\":\"completed\",\"message\":\"Done\"}\n\n"
+	body := bytes.NewReader([]byte(sseData))
+
+	go func() {
+		defer close(updates)
+		err := kitchen.parseSSEStream(body, updates)
+		if err != nil {
+			t.Errorf("parseSSEStream returned error: %v", err)
+		}
+	}()
+
+	var received []CookingUpdate
+	timeout := time.After(2 * time.Second)
+	for {
+		select {
+		case update, ok := <-updates:
+			if !ok {
+				goto done
+			}
+			received = append(received, update)
+		case <-timeout:
+			t.Fatal("timed out waiting for updates")
+		}
+	}
+done:
+	if len(received) != 2 {
+		t.Fatalf("expected 2 updates, got %d: %+v", len(received), received)
+	}
+	if received[0].Action != "checking_inventory" {
+		t.Errorf("expected first action 'checking_inventory', got %q", received[0].Action)
+	}
+	if received[1].Type != "result" {
+		t.Errorf("expected second type 'result', got %q", received[1].Type)
+	}
+}
+
+// TestCookForwardsFullCookingUpdateData tests that the kitchen sends message, toolName, and toolInput
+// to the store along with the action status.
+func TestCookForwardsFullCookingUpdateData(t *testing.T) {
+	agentServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/cook/stream" && r.Method == http.MethodPost {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusOK)
+
+			flusher, _ := w.(http.Flusher)
+
+			updates := []CookingUpdate{
+				{Type: "action", Action: "checking_inventory", Message: "Checking available ingredients in inventory", ToolName: "getInventory", ToolInput: "{}"},
+				{Type: "action", Action: "acquiring_ingredients", Message: "Acquiring ingredients: mozzarella", ToolName: "acquireItem", ToolInput: "{\"itemName\":\"mozzarella\"}"},
+				{Type: "action", Action: "reserving_oven", Message: "Reserving oven for cooking: oven-1", ToolName: "reserveOven", ToolInput: "{\"ovenId\":\"oven-1\"}"},
+				{Type: "result", Action: "completed", Message: "Pizza cooked successfully"},
+			}
+
+			for _, update := range updates {
+				data, _ := json.Marshal(update)
+				w.Write([]byte("data:" + string(data) + "\n\n"))
+				flusher.Flush()
+			}
+		}
+	}))
+	defer agentServer.Close()
+
+	eventsReceived := make(chan OrderEvent, 50)
+	storeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/events" {
+			var event OrderEvent
+			json.NewDecoder(r.Body).Decode(&event)
+			eventsReceived <- event
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer storeServer.Close()
+
+	kitchen := NewKitchenWithConfig(KitchenConfig{
+		StoreURL:        storeServer.URL,
+		CookingAgentURL: agentServer.URL,
+	})
+
+	router := chi.NewRouter()
+	router.Post("/cook", kitchen.HandleCook)
+
+	orderID := uuid.New()
+	req := CookRequest{
+		OrderID:    orderID,
+		OrderItems: []OrderItem{{PizzaType: "Margherita", Quantity: 1}},
+	}
+	body, _ := json.Marshal(req)
+
+	httpReq := httptest.NewRequest(http.MethodPost, "/cook", bytes.NewReader(body))
+	httpReq.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, httpReq)
+
+	// Collect events until DONE
+	var events []OrderEvent
+	timeout := time.After(5 * time.Second)
+	for {
+		select {
+		case event := <-eventsReceived:
+			events = append(events, event)
+			if event.Status == "DONE" {
+				// Verify that action events include message and toolName
+				hasRichData := false
+				for _, e := range events {
+					if e.Status == "checking_inventory" && e.Message != "" && e.ToolName != "" {
+						hasRichData = true
+					}
+				}
+				if !hasRichData {
+					t.Error("expected events to include message and toolName for action events")
+				}
+
+				// Verify reserving_oven has toolInput
+				for _, e := range events {
+					if e.Status == "reserving_oven" {
+						if e.ToolInput == "" {
+							t.Error("expected reserving_oven event to include toolInput")
+						}
+						if e.Message == "" {
+							t.Error("expected reserving_oven event to include message")
+						}
+					}
+				}
+				return
+			}
+		case <-timeout:
+			t.Fatalf("timed out waiting for events, got %d events: %+v", len(events), events)
+		}
+	}
+}
+
 // TestCookStreamsUpdatesToStore tests that the kitchen streams cooking updates to the store.
 func TestCookStreamsUpdatesToStore(t *testing.T) {
 	// Track requests received by the mock cooking-agent

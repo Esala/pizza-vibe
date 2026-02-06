@@ -13,9 +13,12 @@ import (
 
 // OrderUpdate represents an order status update sent to WebSocket clients.
 type OrderUpdate struct {
-	OrderID uuid.UUID `json:"orderId"`
-	Status  string    `json:"status"`
-	Source  string    `json:"source"`
+	OrderID   uuid.UUID `json:"orderId"`
+	Status    string    `json:"status"`
+	Source    string    `json:"source"`
+	Message   string    `json:"message,omitempty"`
+	ToolName  string    `json:"toolName,omitempty"`
+	ToolInput string    `json:"toolInput,omitempty"`
 }
 
 // WebSocketEvent represents the event format sent to frontend clients via WebSocket.
@@ -24,6 +27,9 @@ type WebSocketEvent struct {
 	Status    string    `json:"status"`
 	Source    string    `json:"source"`
 	Timestamp string    `json:"timestamp"`
+	Message   string    `json:"message,omitempty"`
+	ToolName  string    `json:"toolName,omitempty"`
+	ToolInput string    `json:"toolInput,omitempty"`
 }
 
 // WebSocketHub manages WebSocket client connections and broadcasts messages.
@@ -123,6 +129,9 @@ func (s *Store) BroadcastOrderUpdate(update OrderUpdate) {
 		Status:    update.Status,
 		Source:    update.Source,
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Message:   update.Message,
+		ToolName:  update.ToolName,
+		ToolInput: update.ToolInput,
 	}
 	message, err := json.Marshal(event)
 	if err != nil {

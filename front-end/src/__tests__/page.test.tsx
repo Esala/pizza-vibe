@@ -1,6 +1,7 @@
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Home from '@/app/page';
+import { OrderProvider } from '@/context/OrderContext';
 
 // Mock fetch
 global.fetch = jest.fn();
@@ -46,28 +47,37 @@ async function addItemToCart(
   await user.click(addToCartButton);
 }
 
+function renderHome() {
+  return render(
+    <OrderProvider>
+      <Home />
+    </OrderProvider>
+  );
+}
+
 describe('Home Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    sessionStorage.clear();
   });
 
   it('renders the page title', () => {
-    render(<Home />);
+    renderHome();
     expect(screen.getByRole('heading', { name: /pizza vibe/i })).toBeInTheDocument();
   });
 
   it('displays an order form with pizza type selection', () => {
-    render(<Home />);
+    renderHome();
     expect(screen.getByLabelText(/pizza type/i)).toBeInTheDocument();
   });
 
   it('displays an order form with quantity input', () => {
-    render(<Home />);
+    renderHome();
     expect(screen.getByLabelText(/quantity/i)).toBeInTheDocument();
   });
 
   it('displays a submit button to place the order', () => {
-    render(<Home />);
+    renderHome();
     expect(screen.getByRole('button', { name: /place order/i })).toBeInTheDocument();
   });
 
@@ -80,7 +90,7 @@ describe('Home Page', () => {
       json: async () => ({ orderId: 'test-order-id', orderStatus: 'pending' }),
     });
 
-    render(<Home />);
+    renderHome();
 
     // Add item to cart first
     await addItemToCart(user, 'Margherita', 2);
@@ -110,7 +120,7 @@ describe('Home Page', () => {
       json: async () => ({ orderId: 'test-order-id', orderStatus: 'pending' }),
     });
 
-    render(<Home />);
+    renderHome();
 
     // Add item to cart first
     await addItemToCart(user, 'Margherita', 2);
@@ -135,7 +145,7 @@ describe('Home Page', () => {
       json: async () => ({ orderId: 'ws-test-order-id', orderStatus: 'pending' }),
     });
 
-    render(<Home />);
+    renderHome();
 
     // Add item to cart first
     await addItemToCart(user, 'Margherita', 1);
@@ -167,7 +177,7 @@ describe('Home Page', () => {
       json: async () => ({ orderId: 'indicator-test-id', orderStatus: 'pending' }),
     });
 
-    render(<Home />);
+    renderHome();
 
     // Add item to cart first
     await addItemToCart(user, 'Margherita', 1);
@@ -193,7 +203,7 @@ describe('Home Page', () => {
       json: async () => ({ orderId: 'table-test-order-id', orderStatus: 'pending' }),
     });
 
-    render(<Home />);
+    renderHome();
 
     // Add item to cart first
     await addItemToCart(user, 'Margherita', 1);
@@ -256,6 +266,195 @@ describe('Home Page', () => {
     expect(rows.length).toBe(3); // 1 header + 2 data rows
   });
 
+  it('displays cooking update message and tool parameters in events table', async () => {
+    const user = userEvent.setup();
+    const { mockWs } = createMockWebSocket();
+
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ orderId: 'rich-event-order-id', orderStatus: 'pending' }),
+    });
+
+    renderHome();
+    await addItemToCart(user, 'Margherita', 1);
+    await user.click(screen.getByRole('button', { name: /place order/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/rich-event-order-id/i)).toBeInTheDocument();
+    });
+
+    // Simulate a rich cooking update event
+    await act(async () => {
+      if (mockWs.onmessage) {
+        mockWs.onmessage(new MessageEvent('message', {
+          data: JSON.stringify({
+            orderId: 'rich-event-order-id',
+            status: 'checking_inventory',
+            source: 'kitchen',
+            timestamp: '2026-01-26T10:00:00Z',
+            message: 'Checking available ingredients in inventory',
+            toolName: 'getInventory',
+            toolInput: '{}',
+          }),
+        }));
+      }
+    });
+
+    // Verify message is displayed
+    expect(screen.getByText('Checking available ingredients in inventory')).toBeInTheDocument();
+  });
+
+  it('does not display tool_completed events without context', async () => {
+    const user = userEvent.setup();
+    const { mockWs } = createMockWebSocket();
+
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ orderId: 'filter-test-id', orderStatus: 'pending' }),
+    });
+
+    renderHome();
+    await addItemToCart(user, 'Margherita', 1);
+    await user.click(screen.getByRole('button', { name: /place order/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/filter-test-id/i)).toBeInTheDocument();
+    });
+
+    // Send a tool_completed event (should be filtered)
+    await act(async () => {
+      if (mockWs.onmessage) {
+        mockWs.onmessage(new MessageEvent('message', {
+          data: JSON.stringify({
+            orderId: 'filter-test-id',
+            status: 'tool_completed',
+            source: 'kitchen',
+            timestamp: '2026-01-26T10:00:00Z',
+            message: 'Tool execution completed: getInventory',
+          }),
+        }));
+      }
+    });
+
+    // Send a normal action event
+    await act(async () => {
+      if (mockWs.onmessage) {
+        mockWs.onmessage(new MessageEvent('message', {
+          data: JSON.stringify({
+            orderId: 'filter-test-id',
+            status: 'reserving_oven',
+            source: 'kitchen',
+            timestamp: '2026-01-26T10:01:00Z',
+            message: 'Reserving oven for cooking',
+          }),
+        }));
+      }
+    });
+
+    // tool_completed should not appear as a status in the table
+    expect(screen.queryByText('tool_completed')).not.toBeInTheDocument();
+    // But the normal event should appear
+    expect(screen.getByText('Reserving oven for cooking')).toBeInTheDocument();
+  });
+
+  it('displays cooking progress percentage', async () => {
+    const user = userEvent.setup();
+    const { mockWs } = createMockWebSocket();
+
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ orderId: 'progress-test-id', orderStatus: 'pending' }),
+    });
+
+    renderHome();
+    await addItemToCart(user, 'Margherita', 1);
+    await user.click(screen.getByRole('button', { name: /place order/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/progress-test-id/i)).toBeInTheDocument();
+    });
+
+    // Send cooking action events representing progress
+    const events = [
+      { status: 'checking_inventory', message: 'Checking inventory' },
+      { status: 'acquiring_ingredients', message: 'Acquiring mozzarella' },
+      { status: 'reserving_oven', message: 'Reserving oven' },
+    ];
+
+    for (const evt of events) {
+      await act(async () => {
+        if (mockWs.onmessage) {
+          mockWs.onmessage(new MessageEvent('message', {
+            data: JSON.stringify({
+              orderId: 'progress-test-id',
+              ...evt,
+              source: 'kitchen',
+              timestamp: '2026-01-26T10:00:00Z',
+            }),
+          }));
+        }
+      });
+    }
+
+    // Should show a progress indicator (data-testid="cooking-progress")
+    expect(screen.getByTestId('cooking-progress')).toBeInTheDocument();
+  });
+
+  it('saves order to sessionStorage when order is created', async () => {
+    const user = userEvent.setup();
+    createMockWebSocket();
+
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ orderId: 'session-test-id', orderStatus: 'pending' }),
+    });
+
+    // Clear sessionStorage before test
+    sessionStorage.clear();
+
+    renderHome();
+    await addItemToCart(user, 'Margherita', 1);
+    await user.click(screen.getByRole('button', { name: /place order/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/session-test-id/i)).toBeInTheDocument();
+    });
+
+    // Verify order was saved to sessionStorage
+    const savedOrder = sessionStorage.getItem('currentOrder');
+    expect(savedOrder).not.toBeNull();
+    const parsed = JSON.parse(savedOrder!);
+    expect(parsed.orderId).toBe('session-test-id');
+  });
+
+  it('restores order from sessionStorage on mount', async () => {
+    createMockWebSocket();
+
+    // Pre-populate sessionStorage with an existing order
+    sessionStorage.setItem('currentOrder', JSON.stringify({
+      orderId: 'restored-order-id',
+      events: [
+        {
+          orderId: 'restored-order-id',
+          status: 'checking_inventory',
+          source: 'kitchen',
+          timestamp: '2026-01-26T10:00:00Z',
+          message: 'Checking inventory',
+        },
+      ],
+    }));
+
+    renderHome();
+
+    // The restored order ID should be displayed
+    await waitFor(() => {
+      expect(screen.getByTestId('order-id')).toHaveTextContent('restored-order-id');
+    });
+
+    // The restored events should be displayed
+    expect(screen.getByText('Checking inventory')).toBeInTheDocument();
+  });
+
   it('displays error message when order fails', async () => {
     const user = userEvent.setup();
     createMockWebSocket();
@@ -265,7 +464,7 @@ describe('Home Page', () => {
       status: 500,
     });
 
-    render(<Home />);
+    renderHome();
 
     // Add item to cart first
     await addItemToCart(user, 'Margherita', 1);

@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Home from '@/app/page';
+import { OrderProvider } from '@/context/OrderContext';
 
 // Mock fetch
 global.fetch = jest.fn();
@@ -29,19 +30,28 @@ function createMockWebSocket() {
   return { mockWs, MockWebSocket };
 }
 
+function renderHome() {
+  return render(
+    <OrderProvider>
+      <Home />
+    </OrderProvider>
+  );
+}
+
 describe('Cart Functionality', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    sessionStorage.clear();
   });
 
   it('displays an Add to Cart button', () => {
-    render(<Home />);
+    renderHome();
     expect(screen.getByRole('button', { name: /add to cart/i })).toBeInTheDocument();
   });
 
   it('adds an item to the cart when Add to Cart is clicked', async () => {
     const user = userEvent.setup();
-    render(<Home />);
+    renderHome();
 
     const pizzaSelect = screen.getByLabelText(/pizza type/i);
     const quantityInput = screen.getByLabelText(/quantity/i);
@@ -60,7 +70,7 @@ describe('Cart Functionality', () => {
 
   it('adds multiple different pizza types to the cart', async () => {
     const user = userEvent.setup();
-    render(<Home />);
+    renderHome();
 
     const pizzaSelect = screen.getByLabelText(/pizza type/i);
     const quantityInput = screen.getByLabelText(/quantity/i);
@@ -85,7 +95,7 @@ describe('Cart Functionality', () => {
 
   it('removes an item from the cart', async () => {
     const user = userEvent.setup();
-    render(<Home />);
+    renderHome();
 
     const pizzaSelect = screen.getByLabelText(/pizza type/i);
     const quantityInput = screen.getByLabelText(/quantity/i);
@@ -116,7 +126,7 @@ describe('Cart Functionality', () => {
 
   it('updates the quantity of a cart item when same pizza type is added again', async () => {
     const user = userEvent.setup();
-    render(<Home />);
+    renderHome();
 
     const pizzaSelect = screen.getByLabelText(/pizza type/i);
     const quantityInput = screen.getByLabelText(/quantity/i);
@@ -149,7 +159,7 @@ describe('Cart Functionality', () => {
       json: async () => ({ orderId: 'cart-order-id', orderStatus: 'pending' }),
     });
 
-    render(<Home />);
+    renderHome();
 
     const pizzaSelect = screen.getByLabelText(/pizza type/i);
     const quantityInput = screen.getByLabelText(/quantity/i);
@@ -186,7 +196,7 @@ describe('Cart Functionality', () => {
   });
 
   it('does not show cart when no items are added', () => {
-    render(<Home />);
+    renderHome();
     expect(screen.queryByTestId('cart')).not.toBeInTheDocument();
   });
 
@@ -199,7 +209,7 @@ describe('Cart Functionality', () => {
       json: async () => ({ orderId: 'clear-cart-id', orderStatus: 'pending' }),
     });
 
-    render(<Home />);
+    renderHome();
 
     const pizzaSelect = screen.getByLabelText(/pizza type/i);
     const quantityInput = screen.getByLabelText(/quantity/i);
@@ -224,7 +234,7 @@ describe('Cart Functionality', () => {
   });
 
   it('disables Place Order when cart is empty', () => {
-    render(<Home />);
+    renderHome();
     const placeOrderButton = screen.getByRole('button', { name: /place order/i });
     expect(placeOrderButton).toBeDisabled();
   });

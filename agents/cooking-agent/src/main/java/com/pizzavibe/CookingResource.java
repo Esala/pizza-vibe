@@ -2,7 +2,6 @@ package com.pizzavibe;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pizzavibe.agent.CookingAgent;
 import com.pizzavibe.agent.StreamingCookingAgent;
 import com.pizzavibe.model.CookRequest;
 import com.pizzavibe.model.CookingUpdate;
@@ -20,8 +19,6 @@ import jakarta.ws.rs.core.MediaType;
 public class CookingResource {
 
 
-    @Inject
-    CookingAgent cookingAgent;
 
     @Inject
     StreamingCookingAgent streamingCookingAgent;
@@ -37,20 +34,12 @@ public class CookingResource {
 
 
     @POST
-    @Consumes(MediaType.APPLICATION_JSON)
-    @Produces(MediaType.TEXT_PLAIN)
-    public String cookPizzasWithAgent(CookRequest request) {
-        String pizzaList = String.join(", ", request.pizzas());
-        return cookingAgent.cook("Please cook the following pizzas: " + pizzaList);
-    }
-
-    @POST
     @Path("/stream")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.SERVER_SENT_EVENTS)
     public Multi<String> cookPizzasStream(CookRequest request) {
-        String pizzaList = String.join(", ", request.pizzas());
-        return streamingCookingAgent.cookStream("Please cook the following pizzas: " + pizzaList)
+        String pizza = request.pizzas().getFirst();
+        return streamingCookingAgent.cookStream("Please cook the following pizza: " + pizza)
             .map(this::convertToJson);
     }
 

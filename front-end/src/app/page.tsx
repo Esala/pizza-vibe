@@ -1,21 +1,11 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect, FormEvent } from 'react';
+import { useState, FormEvent } from 'react';
+import { useOrder } from '@/context/OrderContext';
 
 interface OrderItem {
   pizzaType: string;
   quantity: number;
-}
-
-interface WebSocketEvent {
-  orderId: string;
-  status: string;
-  source: string;
-  timestamp: string;
-}
-
-function generateClientId(): string {
-  return 'client-' + Math.random().toString(36).substring(2, 15);
 }
 
 export default function Home() {
@@ -24,48 +14,8 @@ export default function Home() {
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
-  const [orderId, setOrderId] = useState<string | null>(null);
-  const [wsConnected, setWsConnected] = useState(false);
-  const [events, setEvents] = useState<WebSocketEvent[]>([]);
-  const wsRef = useRef<WebSocket | null>(null);
-  const clientIdRef = useRef<string>(generateClientId());
 
-  const connectWebSocket = useCallback((): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      const storeWsUrl = process.env.NEXT_PUBLIC_STORE_WS_URL || 'ws://localhost:8080';
-      const wsUrl = `${storeWsUrl}/ws?clientId=${clientIdRef.current}`;
-      const ws = new WebSocket(wsUrl);
-
-      ws.onopen = () => {
-        setWsConnected(true);
-        resolve();
-      };
-
-      ws.onmessage = (event: MessageEvent) => {
-        const data: WebSocketEvent = JSON.parse(event.data);
-        setEvents((prev) => [...prev, data]);
-      };
-
-      ws.onclose = () => {
-        setWsConnected(false);
-      };
-
-      ws.onerror = () => {
-        setWsConnected(false);
-        reject(new Error('WebSocket connection failed'));
-      };
-
-      wsRef.current = ws;
-    });
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-    };
-  }, []);
+  const { orderId, setOrderId, events, setEvents, wsConnected, connectWebSocket } = useOrder();
 
   const handleAddToCart = () => {
     setCart((prevCart) => {
@@ -199,6 +149,16 @@ export default function Home() {
           WebSocket: {wsConnected ? 'Connected' : 'Disconnected'}
         </p>
       )}
+      {events.length > 0 && (() => {
+        const kitchenEvents = events.filter((e) => e.source === 'kitchen');
+        const isCooked = kitchenEvents.some((e) => e.status === 'COOKED');
+        const progressPercent = isCooked ? 100 : Math.min(99, kitchenEvents.length * 20);
+        return (
+          <p data-testid="cooking-progress">
+            Cooking progress: {progressPercent}%
+          </p>
+        );
+      })()}
       {events.length > 0 && (
         <table data-testid="events-table">
           <thead>
@@ -207,6 +167,7 @@ export default function Home() {
               <th>Status</th>
               <th>Source</th>
               <th>Timestamp</th>
+              <th>Details</th>
             </tr>
           </thead>
           <tbody>
@@ -216,6 +177,11 @@ export default function Home() {
                 <td>{event.status}</td>
                 <td>{event.source}</td>
                 <td>{event.timestamp}</td>
+                <td>
+                  {event.message && <span>{event.message}</span>}
+                  {event.toolName && <span> [{event.toolName}]</span>}
+                  {event.toolInput && <span> {event.toolInput}</span>}
+                </td>
               </tr>
             ))}
           </tbody>

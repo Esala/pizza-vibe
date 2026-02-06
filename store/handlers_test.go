@@ -709,6 +709,59 @@ func TestDeliveredEventUpdatesOrderStatus(t *testing.T) {
 	}
 }
 
+// TestEventPassesThroughCookingUpdateData verifies that rich cooking data (message, toolName, toolInput)
+// is passed through from kitchen events to the WebSocket broadcast.
+func TestEventPassesThroughCookingUpdateData(t *testing.T) {
+	store := NewStore()
+	router := chi.NewRouter()
+	router.Post("/order", store.HandleCreateOrder)
+	router.Post("/events", store.HandleEvent)
+
+	// Create an order
+	orderReq := CreateOrderRequest{
+		OrderItems: []OrderItem{{PizzaType: "Margherita", Quantity: 1}},
+	}
+	orderBody, _ := json.Marshal(orderReq)
+	createReq := httptest.NewRequest(http.MethodPost, "/order", bytes.NewReader(orderBody))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRec := httptest.NewRecorder()
+	router.ServeHTTP(createRec, createReq)
+
+	var createdOrder Order
+	json.Unmarshal(createRec.Body.Bytes(), &createdOrder)
+
+	// Send an event with rich cooking data
+	event := OrderEvent{
+		OrderID:   createdOrder.OrderID,
+		Status:    "checking_inventory",
+		Source:    "kitchen",
+		Message:   "Checking available ingredients in inventory",
+		ToolName:  "getInventory",
+		ToolInput: "{}",
+	}
+	eventBody, _ := json.Marshal(event)
+	req := httptest.NewRequest(http.MethodPost, "/events", bytes.NewReader(eventBody))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200 OK, got %d", rec.Code)
+	}
+
+	// Verify the event is tracked with rich data
+	trackedEvents := store.GetOrderEvents(createdOrder.OrderID)
+	if len(trackedEvents) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(trackedEvents))
+	}
+	if trackedEvents[0].Message != "Checking available ingredients in inventory" {
+		t.Errorf("expected message to be preserved, got %q", trackedEvents[0].Message)
+	}
+	if trackedEvents[0].ToolName != "getInventory" {
+		t.Errorf("expected toolName to be preserved, got %q", trackedEvents[0].ToolName)
+	}
+}
+
 // TestDeliveryEventsAreTracked verifies that delivery progress events are tracked per orderId.
 func TestDeliveryEventsAreTracked(t *testing.T) {
 	store := NewStore()

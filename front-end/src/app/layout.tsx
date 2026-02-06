@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
+import { OrderProvider } from "@/context/OrderContext";
 
 export const metadata: Metadata = {
   title: "Pizza Vibe",
@@ -16,7 +17,9 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <Navigation />
-        {children}
+        <OrderProvider>
+          {children}
+        </OrderProvider>
       </body>
     </html>
   );

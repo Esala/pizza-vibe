@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"math/rand"
 	"net/http"
@@ -24,9 +25,12 @@ type KitchenConfig struct {
 
 // OrderEvent represents an event sent to the store service.
 type OrderEvent struct {
-	OrderID uuid.UUID `json:"orderId"`
-	Status  string    `json:"status"`
-	Source  string    `json:"source"`
+	OrderID   uuid.UUID `json:"orderId"`
+	Status    string    `json:"status"`
+	Source    string    `json:"source"`
+	Message   string    `json:"message,omitempty"`
+	ToolName  string    `json:"toolName,omitempty"`
+	ToolInput string    `json:"toolInput,omitempty"`
 }
 
 // Kitchen manages pizza cooking operations and provides HTTP handlers for the kitchen service.
@@ -35,6 +39,7 @@ type Kitchen struct {
 	storeURL        string
 	cookingAgentURL string
 	httpClient      *http.Client
+	streamingClient *http.Client // No timeout for SSE streaming connections
 	cookingTimeFunc func() int
 }
 
@@ -48,6 +53,7 @@ func NewKitchen() *Kitchen {
 		httpClient: &http.Client{
 			Timeout: 60 * time.Second,
 		},
+		streamingClient: &http.Client{}, // No timeout for SSE streaming
 		cookingTimeFunc: func() int { return rng.Intn(10) + 1 },
 	}
 }
@@ -128,7 +134,7 @@ func (k *Kitchen) cookItems(ctx context.Context, orderID uuid.UUID, items []Orde
 				// Only forward action events (not partial response tokens)
 				if update.Type == "action" && update.Action != "" {
 					slog.Info("cooking update", "orderId", orderID, "pizzaType", item.PizzaType, "action", update.Action, "message", update.Message)
-					k.sendEvent(ctx, orderID, update.Action)
+					k.sendCookingEvent(ctx, orderID, update)
 				}
 				if update.Type == "result" {
 					result = update.Message
@@ -186,7 +192,7 @@ func (k *Kitchen) callCookingAgentStream(ctx context.Context, pizzaType string, 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
 
-	resp, err := k.httpClient.Do(req)
+	resp, err := k.streamingClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to call cooking agent: %w", err)
 	}
@@ -201,6 +207,8 @@ func (k *Kitchen) callCookingAgentStream(ctx context.Context, pizzaType string, 
 }
 
 // parseSSEStream parses a Server-Sent Events stream and sends updates to the channel.
+// It handles both "data: value" and "data:value" formats, and multi-line SSE events
+// that may include id:, event:, or other fields before the data: field.
 func (k *Kitchen) parseSSEStream(body interface{ Read([]byte) (int, error) }, updates chan<- CookingUpdate) error {
 	buf := make([]byte, 4096)
 	var dataBuffer bytes.Buffer
@@ -210,7 +218,7 @@ func (k *Kitchen) parseSSEStream(body interface{ Read([]byte) (int, error) }, up
 		if n > 0 {
 			dataBuffer.Write(buf[:n])
 
-			// Process complete SSE events
+			// Process complete SSE events (delimited by blank line)
 			for {
 				data := dataBuffer.Bytes()
 				idx := bytes.Index(data, []byte("\n\n"))
@@ -221,9 +229,21 @@ func (k *Kitchen) parseSSEStream(body interface{ Read([]byte) (int, error) }, up
 				eventData := data[:idx]
 				dataBuffer.Next(idx + 2)
 
-				// Parse SSE event
-				if bytes.HasPrefix(eventData, []byte("data: ")) {
-					jsonData := eventData[6:] // Skip "data: "
+				// Parse each line of the SSE event looking for data: fields
+				lines := bytes.Split(eventData, []byte("\n"))
+				for _, line := range lines {
+					line = bytes.TrimRight(line, "\r") // Handle \r\n line endings
+					if !bytes.HasPrefix(line, []byte("data:")) {
+						continue
+					}
+					jsonData := line[5:] // Skip "data:"
+					// Skip optional space after colon per SSE spec
+					if len(jsonData) > 0 && jsonData[0] == ' ' {
+						jsonData = jsonData[1:]
+					}
+					if len(jsonData) == 0 {
+						continue
+					}
 					var update CookingUpdate
 					if err := json.Unmarshal(jsonData, &update); err != nil {
 						slog.Warn("failed to parse SSE event", "error", err, "data", string(jsonData))
@@ -234,7 +254,7 @@ func (k *Kitchen) parseSSEStream(body interface{ Read([]byte) (int, error) }, up
 			}
 		}
 		if err != nil {
-			if err.Error() == "EOF" {
+			if err == io.EOF {
 				return nil
 			}
 			return err
@@ -242,31 +262,52 @@ func (k *Kitchen) parseSSEStream(body interface{ Read([]byte) (int, error) }, up
 	}
 }
 
-// sendEvent sends an event to the store service.
+// sendCookingEvent sends a rich cooking update event to the store service.
+func (k *Kitchen) sendCookingEvent(ctx context.Context, orderID uuid.UUID, update CookingUpdate) {
+	event := OrderEvent{
+		OrderID:   orderID,
+		Status:    update.Action,
+		Source:    "kitchen",
+		Message:   update.Message,
+		ToolName:  update.ToolName,
+		ToolInput: update.ToolInput,
+	}
+	k.postEvent(ctx, event)
+}
+
+// sendEvent sends a simple status event to the store service.
 func (k *Kitchen) sendEvent(ctx context.Context, orderID uuid.UUID, status string) {
 	event := OrderEvent{
 		OrderID: orderID,
 		Status:  status,
 		Source:  "kitchen",
 	}
+	k.postEvent(ctx, event)
+}
 
+// postEvent posts an OrderEvent to the store service.
+func (k *Kitchen) postEvent(ctx context.Context, event OrderEvent) {
 	body, err := json.Marshal(event)
 	if err != nil {
-		slog.Error("failed to marshal event", "orderId", orderID, "error", err)
+		slog.Error("failed to marshal event", "orderId", event.OrderID, "error", err)
 		return
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, k.storeURL+"/events", bytes.NewReader(body))
 	if err != nil {
-		slog.Error("failed to create event request", "orderId", orderID, "error", err)
+		slog.Error("failed to create event request", "orderId", event.OrderID, "error", err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := k.httpClient.Do(req)
 	if err != nil {
-		slog.Error("failed to send event to store", "orderId", orderID, "status", status, "error", err)
+		slog.Error("failed to send event to store", "orderId", event.OrderID, "status", event.Status, "error", err)
 		return
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		slog.Warn("store returned unexpected status for event", "orderId", event.OrderID, "status", event.Status, "httpStatus", resp.StatusCode)
+	}
 }

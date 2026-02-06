@@ -351,3 +351,26 @@ Requirements:
 - When all the pizzas are cooked still send the DONE event
 
 Output <promise>DONE</promise> when all tests green." --max-iterations 20 --completion-promise "DONE"
+
+## The Frontend should show all the cooking updates received from the kitchen service 
+
+/ralph-loop:ralph-loop "Review the frontend data types to show updates coming from the kitchen using TDD.
+
+Process:
+1. Write failing test for next requirement
+2. Implement minimal code to pass
+3. Run tests
+4. If failing, fix and retry
+5. Refactor if needed
+6. Repeat for all requirements
+
+Requirements:
+- Look for the code in the kitchen/ directory
+- Check the data types for the cooking update events and make sure that those are included in the frontend data model
+- Show the cooking updates in the frontend, including the parameters that were used
+- Avoid showing "tool_completed" without context
+- In the frontend, show the percentage of the cooking process completed
+- In the frontend, when an order is created keep it in the session storage, so the user can change pages and come back to the order
+  - Also keep the websocket open even when the user changes pages
+
+Output <promise>DONE</promise> when all tests green." --max-iterations 20 --completion-promise "DONE"
