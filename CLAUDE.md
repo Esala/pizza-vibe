@@ -64,6 +64,32 @@ Frontend:
 - `globals.css` must only contain global element styles (headings, paragraphs, links, body, resets). Component-specific styles must go in CSS module files (e.g., `Navigation.module.css`).
 - Before working on the frontend, check `front-end/figma-nodes.md` for the Figma URL tree. Ask the user if new pages/nodes have been added.
 
+### Frontend Work Modes
+
+The frontend has two distinct work modes. Always confirm which mode is active before making changes:
+
+**1. Component Creation/Update Mode**
+- Focus: Building and updating the component library.
+- Only modify files inside `src/components/` and the Components Showcase page (`src/app/components/page.tsx`).
+- Do NOT modify any application pages or layouts (e.g., `layout.tsx`, `page.tsx`, route pages).
+- Every new or updated component must be added to the Components Showcase page for visual validation.
+
+**2. Page Design Mode**
+- Focus: Designing application pages and layouts using the existing component library.
+- Use the created components to build pages and update layouts.
+- May modify `layout.tsx`, route pages, and other application files.
+- Avoid creating new components in this mode — if a component is missing, switch to Component Creation mode first.
+
+### Component Organization
+
+- Each component must live in its own folder: `src/components/<ComponentName>/`
+  - `<ComponentName>.tsx` — the component
+  - `<ComponentName>.module.css` — styles (using tokens from `tokens.css`)
+  - `index.ts` — barrel export (`export { default } from './<ComponentName>'`)
+- Child/sub-components must be nested inside their parent component's folder:
+  - Example: `src/components/Header/HeaderNavItem/HeaderNavItem.tsx`
+- Images and SVG assets go in `public/images/`.
+
 Backend:
 - Always keep update the docker-compose.yaml file with all the services of the application.
 - Run `./scripts/test-docker-compose.sh` to validate docker-compose changes before committing.

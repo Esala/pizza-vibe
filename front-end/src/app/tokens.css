@@ -34,6 +34,7 @@
   --color-text-secondary-default: #8f1d06;
   --color-text-tertiary-default: #8f7606;
   --color-text-inverted-default: #ecf2ef;
+  --color-text-disabled: #9faaa5;
 
   /* Colors - Background */
   --color-background-default: #ecf2ef;
@@ -44,6 +45,8 @@
   /* Colors - Border */
   --color-border-default: #0c0d0d;
   --color-border-subtle: #3b4943;
+  --color-border-primary-subtle: #068f52;
+  --color-border-disabled: #9faaa5;
 
   /* Border Widths */
   --border-width-thin: 1px;

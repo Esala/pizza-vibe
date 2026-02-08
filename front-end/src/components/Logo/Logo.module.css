@@ -15,3 +15,18 @@
   height: 53px;
   flex-shrink: 0;
 }
+
+/* Small variant (used in Footer) */
+.small {
+  gap: var(--space-spacing-m);
+}
+
+.small .icon {
+  width: 31px;
+  height: 31px;
+}
+
+.small .text {
+  width: 144px;
+  height: 26px;
+}

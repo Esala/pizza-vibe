@@ -75,3 +75,28 @@
     - `State=Hover` (`112:54`): text color `--color-text-default`, no border
     - `State=Active` (`112:57`): text color `--color-text-primary-default`, border-bottom 4px `--color-text-primary-default`
 
+### Footer (page: `112:78`, component: `112:177`)
+- Page URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=112-78
+- Component URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=112-177
+- Top border: `--border-width-thick` solid `--color-border-default`
+- Layout: flex, justify-between, align-center
+- Padding: `--space-padding` (48px) vertical
+- Left: Logo (small size, ~50% of default)
+- Right ("Footer Info", `112:173`): gap `--space-gap` (48px)
+  - "PizzaVibe V1.0" (`112:174`): Body Small typography
+  - "GitHub" (`112:175`): Body Small typography, underlined link
+- No variants
+
+### Button (page: `114:154`, component set: `114:184`)
+- Page URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=114-154
+- Component URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=114-184
+- Font: H3 (Geist, 20px, extrabold/800, uppercase)
+- Padding: `--space-spacing-l` (24px)
+- Border radius: 90px (pill)
+- Variants:
+  - `State=Default` (`114:183`): bg `--color-background-primary-default`, text `--color-text-default`, no border
+  - `State=Hover` (`114:185`): bg `--color-background-primary-default`, text `--color-text-default`, border 4px `--color-border-primary-subtle`
+  - `State=Active` (`114:187`): bg `--color-background-primary-default`, text `--color-text-primary-default`, border 4px `--color-border-primary-subtle`
+  - `State=Disabled` (`114:190`): bg `--color-background-default`, text `--color-text-disabled`, border 4px `--color-border-disabled`, opacity 0.5
+- New tokens discovered: `--color-border-primary-subtle` (#068f52), `--color-border-disabled` (#9faaa5), `--color-text-disabled` (#9faaa5)
+
