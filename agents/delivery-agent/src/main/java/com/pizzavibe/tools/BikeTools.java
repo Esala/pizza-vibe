@@ -23,7 +23,7 @@ public class BikeTools {
         return runScript(scriptsPath + "/list-bikes.sh", bikesServiceUrl);
     }
 
-    @Tool("Get the status of a specific bike by its ID. Returns JSON with id, status, user, and updatedAt fields.")
+    @Tool("Wait for a bike to finish its delivery. Polls the bike every 2 seconds and returns only when the bike status is AVAILABLE. Call this once after reserving a bike.")
     public String getBike(String bikeId) {
         return runScript(scriptsPath + "/get-bike.sh", bikeId, bikesServiceUrl);
     }

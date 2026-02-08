@@ -404,3 +404,27 @@ Requirements:
 
 
 Output <promise>DONE</promise> when all tests green." --max-iterations 20 --completion-promise "DONE"
+
+
+# Make the oven service to stream back the cooking progress
+
+Update the oven service to stream back progress when cooking a pizza using TDD.
+
+Process:
+1. Write failing test for next requirement
+2. Implement minimal code to pass
+3. Run tests
+4. If failing, fix and retry
+5. Refactor if needed
+6. Repeat for all requirements
+
+Requirements:
+- Looking at the code in the oven/ directory, make changes to the oven service to stream back the cooking progress
+- Change the data model to include the percentage of the cooking process completed when calling the HandleGetByID function
+    - If the oven is reserved, return the percentage of the cooking process completed based on releaseDuration for that specific oven
+    - If the oven is available, return 0
+- Update the Cooking agent to receive the percentage of the cooking process completed, so it can be sent to the kitchen service
+
+
+
+Output <promise>DONE</promise> when all tests green.
