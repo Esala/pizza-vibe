@@ -79,6 +79,11 @@ export default function Home() {
     }
   };
 
+  const kitchenEvents = events.filter((e) => e.source === 'kitchen');
+  const deliveryEvents = events.filter((e) => e.source === 'delivery');
+  const isCooked = kitchenEvents.some((e) => e.status === 'COOKED');
+  const isDelivered = deliveryEvents.some((e) => e.status === 'DELIVERED');
+
   return (
     <main>
       <h1>Pizza Vibe</h1>
@@ -150,8 +155,6 @@ export default function Home() {
         </p>
       )}
       {events.length > 0 && (() => {
-        const kitchenEvents = events.filter((e) => e.source === 'kitchen');
-        const isCooked = kitchenEvents.some((e) => e.status === 'COOKED');
         const progressPercent = isCooked ? 100 : Math.min(99, kitchenEvents.length * 20);
         return (
           <p data-testid="cooking-progress">
@@ -159,6 +162,11 @@ export default function Home() {
           </p>
         );
       })()}
+      {isCooked && (
+        <p data-testid="delivery-progress">
+          Delivery: {isDelivered ? 'Delivered' : `In progress (${deliveryEvents.filter((e) => e.status !== 'DELIVERED').length} updates)`}
+        </p>
+      )}
       {events.length > 0 && (
         <table data-testid="events-table">
           <thead>

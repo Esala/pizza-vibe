@@ -40,14 +40,30 @@ public record DeliveryUpdate(
         };
     }
 
+    private static String extractBikeId(String toolInput) {
+        if (toolInput == null) return "";
+        // Try to extract bikeId from JSON input like {"bikeId":"bike-1","user":"dave","orderId":"123"}
+        try {
+            int idx = toolInput.indexOf("\"bikeId\"");
+            if (idx >= 0) {
+                int start = toolInput.indexOf("\"", idx + 8) + 1;
+                int end = toolInput.indexOf("\"", start);
+                if (start > 0 && end > start) {
+                    return toolInput.substring(start, end);
+                }
+            }
+        } catch (Exception ignored) {}
+        return toolInput;
+    }
+
     private static String generateToolMessage(String toolName, String toolInput) {
         if (toolName == null) {
             return "Processing...";
         }
         return switch (toolName.toLowerCase()) {
             case "getbikes" -> "Checking available bikes for delivery";
-            case "getbike" -> "Checking bike status: " + toolInput;
-            case "reservebike" -> "Reserving bike for delivery: " + toolInput;
+            case "getbike" -> "Checking bike status: " + extractBikeId(toolInput);
+            case "reservebike" -> "Reserving bike for delivery: " + extractBikeId(toolInput);
             default -> "Processing: " + toolName;
         };
     }

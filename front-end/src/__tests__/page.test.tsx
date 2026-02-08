@@ -400,6 +400,145 @@ describe('Home Page', () => {
     expect(screen.getByTestId('cooking-progress')).toBeInTheDocument();
   });
 
+  it('displays delivery progress after cooking is complete', async () => {
+    const user = userEvent.setup();
+    const { mockWs } = createMockWebSocket();
+
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ orderId: 'delivery-progress-test-id', orderStatus: 'pending' }),
+    });
+
+    renderHome();
+    await addItemToCart(user, 'Margherita', 1);
+    await user.click(screen.getByRole('button', { name: /place order/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/delivery-progress-test-id/i)).toBeInTheDocument();
+    });
+
+    // Send COOKED event from kitchen
+    await act(async () => {
+      if (mockWs.onmessage) {
+        mockWs.onmessage(new MessageEvent('message', {
+          data: JSON.stringify({
+            orderId: 'delivery-progress-test-id',
+            status: 'COOKED',
+            source: 'kitchen',
+            timestamp: '2026-01-26T10:00:00Z',
+          }),
+        }));
+      }
+    });
+
+    // Should show delivery progress indicator
+    expect(screen.getByTestId('delivery-progress')).toBeInTheDocument();
+    expect(screen.getByTestId('delivery-progress')).toHaveTextContent('In progress (0 updates)');
+
+    // Send delivery agent events
+    await act(async () => {
+      if (mockWs.onmessage) {
+        mockWs.onmessage(new MessageEvent('message', {
+          data: JSON.stringify({
+            orderId: 'delivery-progress-test-id',
+            status: 'checking_bikes',
+            source: 'delivery',
+            timestamp: '2026-01-26T10:01:00Z',
+            message: 'Checking available bikes for delivery',
+            toolName: 'getBikes',
+          }),
+        }));
+      }
+    });
+
+    expect(screen.getByTestId('delivery-progress')).toHaveTextContent('In progress (1 updates)');
+    // Verify the delivery event details are shown in the events table
+    expect(screen.getByText('Checking available bikes for delivery')).toBeInTheDocument();
+
+    // Send reserving_bike event
+    await act(async () => {
+      if (mockWs.onmessage) {
+        mockWs.onmessage(new MessageEvent('message', {
+          data: JSON.stringify({
+            orderId: 'delivery-progress-test-id',
+            status: 'reserving_bike',
+            source: 'delivery',
+            timestamp: '2026-01-26T10:02:00Z',
+            message: 'Reserving bike for delivery: bike-1',
+            toolName: 'reserveBike',
+            toolInput: '{"bikeId":"bike-1"}',
+          }),
+        }));
+      }
+    });
+
+    expect(screen.getByTestId('delivery-progress')).toHaveTextContent('In progress (2 updates)');
+    expect(screen.getByText('Reserving bike for delivery: bike-1')).toBeInTheDocument();
+  });
+
+  it('shows delivered status when delivery is complete', async () => {
+    const user = userEvent.setup();
+    const { mockWs } = createMockWebSocket();
+
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ orderId: 'delivered-test-id', orderStatus: 'pending' }),
+    });
+
+    renderHome();
+    await addItemToCart(user, 'Margherita', 1);
+    await user.click(screen.getByRole('button', { name: /place order/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/delivered-test-id/i)).toBeInTheDocument();
+    });
+
+    // Send COOKED event
+    await act(async () => {
+      if (mockWs.onmessage) {
+        mockWs.onmessage(new MessageEvent('message', {
+          data: JSON.stringify({
+            orderId: 'delivered-test-id',
+            status: 'COOKED',
+            source: 'kitchen',
+            timestamp: '2026-01-26T10:00:00Z',
+          }),
+        }));
+      }
+    });
+
+    // Send delivery events
+    await act(async () => {
+      if (mockWs.onmessage) {
+        mockWs.onmessage(new MessageEvent('message', {
+          data: JSON.stringify({
+            orderId: 'delivered-test-id',
+            status: 'checking_bikes',
+            source: 'delivery',
+            timestamp: '2026-01-26T10:01:00Z',
+            message: 'Checking available bikes',
+          }),
+        }));
+      }
+    });
+
+    // Send DELIVERED event
+    await act(async () => {
+      if (mockWs.onmessage) {
+        mockWs.onmessage(new MessageEvent('message', {
+          data: JSON.stringify({
+            orderId: 'delivered-test-id',
+            status: 'DELIVERED',
+            source: 'delivery',
+            timestamp: '2026-01-26T10:05:00Z',
+          }),
+        }));
+      }
+    });
+
+    expect(screen.getByTestId('delivery-progress')).toHaveTextContent('Delivered');
+  });
+
   it('saves order to sessionStorage when order is created', async () => {
     const user = userEvent.setup();
     createMockWebSocket();

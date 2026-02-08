@@ -11,11 +11,13 @@ type Bike struct {
 	ID        string    `json:"id"`
 	Status    string    `json:"status"`
 	User      string    `json:"user,omitempty"`
+	OrderID   string    `json:"orderId,omitempty"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type ReserveRequest struct {
-	User string `json:"user"`
+	User    string `json:"user"`
+	OrderID string `json:"orderId,omitempty"`
 }
 
 type BikeEvent struct {

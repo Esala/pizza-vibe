@@ -22,7 +22,7 @@ class BikeToolsTest {
 
     @Test
     void shouldHaveReserveBikeMethod() throws NoSuchMethodException {
-        var method = BikeTools.class.getMethod("reserveBike", String.class, String.class);
+        var method = BikeTools.class.getMethod("reserveBike", String.class, String.class, String.class);
         assertNotNull(method);
         assertTrue(method.isAnnotationPresent(dev.langchain4j.agent.tool.Tool.class));
     }

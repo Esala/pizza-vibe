@@ -26,6 +26,15 @@ const mockEvents = [
   { orderId: '123e4567-e89b-12d3-a456-426614174000', status: 'DONE', source: 'kitchen' },
 ];
 
+const mockEventsWithDelivery = [
+  { orderId: '123e4567-e89b-12d3-a456-426614174000', status: 'checking_inventory', source: 'kitchen', message: 'Checking available ingredients', toolName: 'getInventory', toolInput: '{}' },
+  { orderId: '123e4567-e89b-12d3-a456-426614174000', status: 'COOKED', source: 'kitchen' },
+  { orderId: '123e4567-e89b-12d3-a456-426614174000', status: 'checking_bikes', source: 'delivery', message: 'Checking available bikes for delivery', toolName: 'getBikes', toolInput: '{}' },
+  { orderId: '123e4567-e89b-12d3-a456-426614174000', status: 'reserving_bike', source: 'delivery', message: 'Reserving bike for delivery: bike-1', toolName: 'reserveBike', toolInput: '{"bikeId":"bike-1"}' },
+  { orderId: '123e4567-e89b-12d3-a456-426614174000', status: 'checking_bike_status', source: 'delivery', message: 'Checking bike status: bike-1', toolName: 'getBike', toolInput: '{"bikeId":"bike-1"}' },
+  { orderId: '123e4567-e89b-12d3-a456-426614174000', status: 'DELIVERED', source: 'delivery' },
+];
+
 describe('Management Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -312,5 +321,144 @@ describe('Management Page', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /events/i })).toBeInTheDocument();
     });
+  });
+
+  it('displays delivery event details with message and tool info', async () => {
+    (global.fetch as jest.Mock).mockImplementation((url: string) => {
+      if (url.includes('/health')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ status: 'healthy' }),
+        });
+      }
+      if (url.includes('/api/orders')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockOrders,
+        });
+      }
+      if (url.includes('/api/events')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockEventsWithDelivery,
+        });
+      }
+      return Promise.reject(new Error('Unknown endpoint'));
+    });
+
+    render(<ManagementPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/pending/i)).toBeInTheDocument();
+    });
+
+    // Click on the first order
+    const orderRows = screen.getAllByTestId('order-row');
+    fireEvent.click(orderRows[0]);
+
+    // Wait for events to load and verify delivery events are shown
+    await waitFor(() => {
+      expect(screen.getByText('Checking available bikes for delivery')).toBeInTheDocument();
+    });
+
+    // Verify delivery event details
+    expect(screen.getByText('Reserving bike for delivery: bike-1')).toBeInTheDocument();
+    expect(screen.getByText('Checking bike status: bike-1')).toBeInTheDocument();
+
+    // Verify both kitchen and delivery sources appear
+    const deliveryCells = screen.getAllByText('delivery');
+    expect(deliveryCells.length).toBeGreaterThan(0);
+
+    const kitchenCells = screen.getAllByText('kitchen');
+    expect(kitchenCells.length).toBeGreaterThan(0);
+
+    // Verify DELIVERED status appears
+    expect(screen.getByText('DELIVERED')).toBeInTheDocument();
+  });
+
+  it('shows Details column header in events table', async () => {
+    (global.fetch as jest.Mock).mockImplementation((url: string) => {
+      if (url.includes('/health')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ status: 'healthy' }),
+        });
+      }
+      if (url.includes('/api/orders')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockOrders,
+        });
+      }
+      if (url.includes('/api/events')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockEventsWithDelivery,
+        });
+      }
+      return Promise.reject(new Error('Unknown endpoint'));
+    });
+
+    render(<ManagementPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/pending/i)).toBeInTheDocument();
+    });
+
+    const orderRows = screen.getAllByTestId('order-row');
+    fireEvent.click(orderRows[0]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('events-detail-table')).toBeInTheDocument();
+    });
+
+    // Verify the events detail table has the expected column headers
+    const eventsTable = screen.getByTestId('events-detail-table');
+    const headers = eventsTable.querySelectorAll('th');
+    const headerTexts = Array.from(headers).map((h) => h.textContent);
+    expect(headerTexts).toContain('Status');
+    expect(headerTexts).toContain('Source');
+    expect(headerTexts).toContain('Details');
+  });
+
+  it('displays tool name and input in events detail table', async () => {
+    (global.fetch as jest.Mock).mockImplementation((url: string) => {
+      if (url.includes('/health')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ status: 'healthy' }),
+        });
+      }
+      if (url.includes('/api/orders')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockOrders,
+        });
+      }
+      if (url.includes('/api/events')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockEventsWithDelivery,
+        });
+      }
+      return Promise.reject(new Error('Unknown endpoint'));
+    });
+
+    render(<ManagementPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/pending/i)).toBeInTheDocument();
+    });
+
+    const orderRows = screen.getAllByTestId('order-row');
+    fireEvent.click(orderRows[0]);
+
+    // Verify tool names are displayed in brackets
+    await waitFor(() => {
+      expect(screen.getByText(/\[getBikes\]/)).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/\[reserveBike\]/)).toBeInTheDocument();
+    expect(screen.getByText(/\[getBike\]/)).toBeInTheDocument();
   });
 });

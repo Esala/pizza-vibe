@@ -28,9 +28,9 @@ public class BikeTools {
         return runScript(scriptsPath + "/get-bike.sh", bikeId, bikesServiceUrl);
     }
 
-    @Tool("Reserve a bike for delivery. The bike must be AVAILABLE. Requires bikeId and user name. The bike will automatically become AVAILABLE again after 10-20 seconds when the delivery is complete.")
-    public String reserveBike(String bikeId, String user) {
-        return runScript(scriptsPath + "/reserve-bike.sh", bikeId, user, bikesServiceUrl);
+    @Tool("Reserve a bike for delivery. The bike must be AVAILABLE. Requires bikeId, user name, and orderId. The bike will automatically become AVAILABLE again after 10-20 seconds when the delivery is complete.")
+    public String reserveBike(String bikeId, String user, String orderId) {
+        return runScript(scriptsPath + "/reserve-bike.sh", bikeId, user, orderId, bikesServiceUrl);
     }
 
     String runScript(String scriptPath, String... args) {

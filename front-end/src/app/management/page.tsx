@@ -24,6 +24,9 @@ interface OrderEvent {
   orderId: string;
   status: string;
   source: string;
+  message?: string;
+  toolName?: string;
+  toolInput?: string;
 }
 
 export default function ManagementPage() {
@@ -158,11 +161,12 @@ export default function ManagementPage() {
           {events.length === 0 ? (
             <p>No events for this order</p>
           ) : (
-            <table>
+            <table data-testid="events-detail-table">
               <thead>
                 <tr>
                   <th>Status</th>
                   <th>Source</th>
+                  <th>Details</th>
                 </tr>
               </thead>
               <tbody>
@@ -170,6 +174,11 @@ export default function ManagementPage() {
                   <tr key={idx}>
                     <td>{event.status}</td>
                     <td>{event.source}</td>
+                    <td>
+                      {event.message && <span>{event.message}</span>}
+                      {event.toolName && <span> [{event.toolName}]</span>}
+                      {event.toolInput && <span> {event.toolInput}</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>

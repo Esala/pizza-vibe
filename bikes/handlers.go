@@ -116,10 +116,11 @@ func (s *BikeService) HandleReserveBike(w http.ResponseWriter, r *http.Request) 
 	now := time.Now()
 	bike.Status = StatusReserved
 	bike.User = req.User
+	bike.OrderID = req.OrderID
 	bike.UpdatedAt = now
 	s.mu.Unlock()
 
-	slog.Info("bike reserved", "bikeId", bikeID, "user", req.User)
+	slog.Info("bike reserved", "bikeId", bikeID, "user", req.User, "orderId", req.OrderID)
 
 	// Start auto-release goroutine
 	go s.autoRelease(bikeID, req.User)
@@ -159,6 +160,7 @@ func (s *BikeService) autoRelease(bikeID string, user string) {
 	if ok && bike.Status == StatusReserved {
 		bike.Status = StatusAvailable
 		bike.User = ""
+		bike.OrderID = ""
 		bike.UpdatedAt = time.Now()
 		slog.Info("bike auto-released", "bikeId", bikeID)
 	}

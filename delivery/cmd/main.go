@@ -24,8 +24,12 @@ func main() {
 		port = "8082"
 	}
 
-	// Create delivery instance
-	d := delivery.NewDelivery()
+	// Create delivery instance with optional agent URL override
+	config := delivery.DeliveryConfig{}
+	if agentURL := os.Getenv("DELIVERY_AGENT_URL"); agentURL != "" {
+		config.DeliveryAgentURL = agentURL
+	}
+	d := delivery.NewDeliveryWithConfig(config)
 
 	// Set up router with middleware
 	r := chi.NewRouter()
