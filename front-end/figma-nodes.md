@@ -3,6 +3,12 @@
 **File Key**: `Iia6bIqfQwSvXxTnfedTXj`
 **Base URL**: `https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit`
 
+
+
+### Cover (node: `7:2`)
+- URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=7-2
+- Brand showcase page
+
 ## Design Tokens
 
 ### Typography (page: `0:1`, frame: `1:2`)
@@ -43,8 +49,29 @@
 - URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=127-20
 - Tokens: s, m, l, xl
 
-## Pages
+## Components
 
-### Cover (node: `7:2`)
-- URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=7-2
-- Brand showcase page
+### Logo (page: `107:147`, component: `107:201`)
+- Page URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=107-147
+- Component URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=107-201
+- Pizza icon + "PIZZAVIBE" text (Knewave font, bold italic), 375×62
+- No variants
+
+### Header (page: `111:303`)
+- Page URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=111-303
+- **Header** (component: `111:390`)
+  - Component URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=111-390
+  - Full-width bar: Logo (left) + Navigation (right)
+  - Padding: `--space-padding` (48px) vertical
+  - Nav gap: `--space-gap` (48px)
+  - Layout: flex, justify-between, align-end
+  - No variants
+- **HeaderNavItem** (component set: `112:53`)
+  - Component URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=112-53
+  - Font: H3 (Geist, 20px, extrabold/800, uppercase)
+  - Padding: `--space-spacing-l` (24px) vertical
+  - Variants:
+    - `State=Default` (`112:52`): text color `--color-text-subtle`, no border
+    - `State=Hover` (`112:54`): text color `--color-text-default`, no border
+    - `State=Active` (`112:57`): text color `--color-text-primary-default`, border-bottom 4px `--color-text-primary-default`
+
