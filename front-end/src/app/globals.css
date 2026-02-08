@@ -1,50 +1,63 @@
+/* Reset */
 * {
   box-sizing: border-box;
   padding: 0;
   margin: 0;
 }
 
+/* Body */
 body {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--type-body-default-font-family);
+  font-size: var(--type-body-default-font-size);
+  font-weight: var(--type-body-default-font-weight);
+  line-height: var(--type-body-default-line-height);
+  background-color: var(--color-background-default);
+  color: var(--color-text-default);
 }
 
-.nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 2rem;
-  background-color: #e53935;
-  color: white;
+/* Headings */
+h1 {
+  font-family: var(--type-heading-h1-font-family);
+  font-size: var(--type-heading-h1-font-size);
+  font-weight: var(--type-heading-h1-font-weight);
+  line-height: var(--type-heading-h1-line-height);
 }
 
-.nav-brand {
-  font-size: 1.5rem;
-  font-weight: bold;
+h2 {
+  font-family: var(--type-heading-h2-font-family);
+  font-size: var(--type-heading-h2-font-size);
+  font-weight: var(--type-heading-h2-font-weight);
+  line-height: var(--type-heading-h2-line-height);
 }
 
-.nav-links {
-  display: flex;
-  list-style: none;
-  gap: 1rem;
+h3 {
+  font-family: var(--type-heading-h3-font-family);
+  font-size: var(--type-heading-h3-font-size);
+  font-weight: var(--type-heading-h3-font-weight);
+  line-height: var(--type-heading-h3-line-height);
 }
 
-.nav-link {
-  color: white;
-  text-decoration: none;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  transition: background-color 0.2s;
+/* Paragraphs */
+p {
+  font-family: var(--type-body-default-font-family);
+  font-size: var(--type-body-default-font-size);
+  font-weight: var(--type-body-default-font-weight);
+  line-height: var(--type-body-default-line-height);
 }
 
-.nav-link:hover {
-  background-color: rgba(255, 255, 255, 0.2);
+small {
+  font-family: var(--type-body-small-font-family);
+  font-size: var(--type-body-small-font-size);
+  font-weight: var(--type-body-small-font-weight);
+  line-height: var(--type-body-small-line-height);
 }
 
-.nav-link.active {
-  background-color: rgba(255, 255, 255, 0.3);
-  font-weight: bold;
+/* Links */
+a {
+  color: var(--color-text-primary-default);
 }
 
+/* Main content area */
 main {
-  padding: 2rem;
+  padding: var(--space-spacing-l);
 }

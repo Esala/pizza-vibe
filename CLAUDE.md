@@ -61,9 +61,73 @@ Frontend:
 - Do not add styles unless it is specified by the user.
 - When creating content in pages, only add what is explicitly requested or ask if recommending additional content is needed.
 - Never add styles unless specifically requested by the user.
+- `globals.css` must only contain global element styles (headings, paragraphs, links, body, resets). Component-specific styles must go in CSS module files (e.g., `Navigation.module.css`).
+- Before working on the frontend, check `front-end/figma-nodes.md` for the Figma URL tree. Ask the user if new pages/nodes have been added.
 
 Backend:
 - Always keep update the docker-compose.yaml file with all the services of the application.
 - Run `./scripts/test-docker-compose.sh` to validate docker-compose changes before committing.
 - Always provide Kubernetes manifests for each service and infrastructure component.
 - Always implement Dockerfile for each service
+
+## Figma Design System Integration (STRICT MODE)
+
+The frontend design system is managed through Figma via MCP server connection. This is a **strict** workflow - no exceptions.
+
+### Figma Connection Details
+- **File URL**: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit
+- **File Key**: `Iia6bIqfQwSvXxTnfedTXj`
+- **Tokens File**: `front-end/src/app/tokens.css`
+
+### Available Token Categories and Figma Node IDs
+- Typography (node: `1:2`) - H1 (Knewave), H2, H3, Body Default, Body Small (Geist)
+- Colors - Text (node: `98:3`) - default, subtle, primary, secondary, tertiary, inverted
+- Colors - Background (from nodes: `98:24`, `103:130`, `103:138`) - default, primary, secondary, inverted
+- Colors - Border (node: `98:15`) - default, subtle
+- Border Widths (node: `98:65`) - thin, default, thick, thicker
+- Spacing (nodes: `98:24` padding, `98:44` margin, `98:51` gap)
+- Spacing Scale (node: `102:100`) - s, m, l, xl, xxl
+- Corners (node: `127:20`) - s, m, l, xl
+- Cover (node: `7:2`) - brand showcase
+
+### Rules for Style Management
+
+**STRICT: Never hardcode style values.** All visual properties must use CSS variables from `tokens.css`:
+- Colors (hex, rgb, hsl, etc.) → Must use `--color-*` variables
+- Font sizes → Must use `--type-*-font-size` variables
+- Line heights → Must use `--type-*-line-height` variables
+- Font weights → Must use `--type-*-font-weight` variables
+- Spacing (padding, margin, gap) → Must use `--space-*` variables
+- Border widths → Must use `--border-width-*` variables
+- Border colors → Must use `--color-border-*` variables
+- Border radius → Must use `--corner-*` variables
+
+**STRICT: Check Figma before any style work.** Before adding or modifying any styles:
+1. Call `mcp__figma-remote-mcp__get_variable_defs` on the relevant Figma node
+2. Verify the token exists in `tokens.css`
+3. If token doesn't exist, inform the user and do NOT proceed with hardcoded values
+
+### Sync Workflow
+
+**Manual sync** - When user says "sync styles from Figma" or "check Figma for updates":
+1. Call `get_variable_defs` on all known Figma nodes (listed above)
+2. Compare with current `tokens.css`
+3. Report: new tokens, changed values, removed tokens
+4. Update `tokens.css` only with user approval
+
+### Adding New Token Categories
+
+When user adds new pages to Figma (colors, spacing, components, etc.):
+1. User provides the Figma URL with the new page/node
+2. Call `get_metadata` to understand the structure
+3. Call `get_variable_defs` to extract tokens
+4. Add new tokens to `tokens.css` under appropriate section
+5. Update this CLAUDE.md with the new category and node ID
+
+### Component Styles
+
+For component-specific styles:
+1. Use CSS modules (`.module.css` files)
+2. Component styles must still use variables from `tokens.css`
+3. When implementing a Figma component, use `get_design_context` on the selected component node to get the exact styles
+4. Never hardcode values even in component CSS modules
