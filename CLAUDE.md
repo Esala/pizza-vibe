@@ -52,8 +52,9 @@ The Kitchen and delivery services must use Dapr Pub/Sub to provide updates to th
 
 ## Best practices
 
-General: 
+General:
 - Do not do more than what is asked for
+
 Frontend:
 - Everytime that you send a request to the store service validate the data types to make sure that the request is valid.
 - Use the store service data types (@store/models.go) to create mock data for the jest tests.
@@ -96,6 +97,7 @@ Backend:
 - Always provide Kubernetes manifests for each service and infrastructure component.
 - Always implement Dockerfile for each service
 
+
 ## Figma Design System Integration (STRICT MODE)
 
 The frontend design system is managed through Figma via MCP server connection. This is a **strict** workflow - no exceptions.
@@ -115,6 +117,12 @@ The frontend design system is managed through Figma via MCP server connection. T
 - Spacing Scale (node: `102:100`) - s, m, l, xl, xxl
 - Corners (node: `127:20`) - s, m, l, xl
 - Cover (node: `7:2`) - brand showcase
+- **File URL**: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/Project-Library
+- **File Key**: `Iia6bIqfQwSvXxTnfedTXj`
+- **Tokens File**: `front-end/src/app/tokens.css`
+
+### Available Token Categories (update as Figma pages are added)
+- Typography (node: `0:1`) - H1, H2, H3 headings, body text
 
 ### Rules for Style Management
 
@@ -133,6 +141,11 @@ The frontend design system is managed through Figma via MCP server connection. T
 2. Verify the token exists in `tokens.css`
 3. If token doesn't exist, inform the user and do NOT proceed with hardcoded values
 
+**STRICT: Block non-compliant changes.** If a style change is requested but no corresponding Figma token exists:
+1. Stop and inform the user
+2. Explain which token is missing
+3. Ask user to add it to Figma first, then request a sync
+
 ### Sync Workflow
 
 **Manual sync** - When user says "sync styles from Figma" or "check Figma for updates":
@@ -140,6 +153,11 @@ The frontend design system is managed through Figma via MCP server connection. T
 2. Compare with current `tokens.css`
 3. Report: new tokens, changed values, removed tokens
 4. Update `tokens.css` only with user approval
+
+**Automatic check** - Before any style-related task:
+1. Read current `tokens.css`
+2. Verify required tokens exist
+3. If missing, trigger sync workflow
 
 ### Adding New Token Categories
 
@@ -149,6 +167,7 @@ When user adds new pages to Figma (colors, spacing, components, etc.):
 3. Call `get_variable_defs` to extract tokens
 4. Add new tokens to `tokens.css` under appropriate section
 5. Update this CLAUDE.md with the new category and node ID
+6. If it's a new category (e.g., colors), add corresponding global styles to `globals.css` if needed
 
 ### Component Styles
 
@@ -157,3 +176,11 @@ For component-specific styles:
 2. Component styles must still use variables from `tokens.css`
 3. When implementing a Figma component, use `get_design_context` on the selected component node to get the exact styles
 4. Never hardcode values even in component CSS modules
+
+### Validation Check
+
+To verify compliance, scan for violations:
+- Hardcoded hex colors: `#[0-9a-fA-F]{3,8}`
+- Hardcoded rgb/hsl: `rgb\(|hsl\(`
+- Hardcoded pixels for spacing/sizing (except in tokens.css)
+- CSS variables used but not defined in tokens.css
