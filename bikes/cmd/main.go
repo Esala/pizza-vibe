@@ -22,6 +22,9 @@ func main() {
 	}
 
 	svc := bikes.NewBikeService()
+	if deliveryURL := os.Getenv("DELIVERY_URL"); deliveryURL != "" {
+		svc.SetDeliveryURL(deliveryURL)
+	}
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)

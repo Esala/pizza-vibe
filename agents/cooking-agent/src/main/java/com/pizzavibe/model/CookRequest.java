@@ -2,5 +2,5 @@ package com.pizzavibe.model;
 
 import java.util.List;
 
-public record CookRequest(List<String> pizzas) {
+public record CookRequest(List<String> pizzas, String orderId) {
 }

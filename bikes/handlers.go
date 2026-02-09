@@ -1,6 +1,7 @@
 package bikes
 
 import (
+	"bytes"
 	"encoding/json"
 	"log/slog"
 	"math/rand"
@@ -17,6 +18,8 @@ type BikeService struct {
 	bikes           map[string]*Bike
 	eventEmitter    func(event BikeEvent)
 	releaseDuration func() time.Duration
+	deliveryURL     string
+	httpClient      *http.Client
 }
 
 func defaultReleaseDuration() time.Duration {
@@ -27,6 +30,8 @@ func NewBikeService() *BikeService {
 	return &BikeService{
 		bikes:           DefaultBikes(),
 		releaseDuration: defaultReleaseDuration,
+		deliveryURL:     "http://delivery:8082",
+		httpClient:      &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
@@ -34,6 +39,11 @@ func NewBikeServiceWithBikes(bikes map[string]*Bike) *BikeService {
 	return &BikeService{
 		bikes: bikes,
 	}
+}
+
+// SetDeliveryURL sets the delivery service URL for sending progress events.
+func (s *BikeService) SetDeliveryURL(url string) {
+	s.deliveryURL = url
 }
 
 func (s *BikeService) HandleGetAll(w http.ResponseWriter, r *http.Request) {
@@ -137,22 +147,32 @@ func (s *BikeService) autoRelease(bikeID string, user string) {
 	duration := s.releaseDuration()
 	slog.Info("auto-release scheduled", "bikeId", bikeID, "duration", duration)
 
-	eventInterval := duration / 4
-	elapsed := time.Duration(0)
+	// Look up the orderId for this bike
+	s.mu.RLock()
+	orderID := ""
+	if bike, ok := s.bikes[bikeID]; ok {
+		orderID = bike.OrderID
+	}
+	s.mu.RUnlock()
 
-	for elapsed < duration {
+	eventInterval := duration / 4
+	steps := 4
+	for i := 1; i <= steps; i++ {
 		time.Sleep(eventInterval)
-		elapsed += eventInterval
+		progress := (i * 100) / steps // 25, 50, 75, 100
 
 		if s.eventEmitter != nil {
 			s.eventEmitter(BikeEvent{
 				BikeID:    bikeID,
 				Status:    StatusReserved,
 				User:      user,
+				OrderID:   orderID,
+				Progress:  progress,
 				Timestamp: time.Now(),
 			})
 		}
-		slog.Info("bike on route", "bikeId", bikeID, "user", user)
+		s.sendProgressToDelivery(orderID, bikeID, progress)
+		slog.Info("bike on route", "bikeId", bikeID, "user", user, "progress", progress)
 	}
 
 	s.mu.Lock()
@@ -165,4 +185,28 @@ func (s *BikeService) autoRelease(bikeID string, user string) {
 		slog.Info("bike auto-released", "bikeId", bikeID)
 	}
 	s.mu.Unlock()
+}
+
+// sendProgressToDelivery sends a bike progress event to the delivery service.
+func (s *BikeService) sendProgressToDelivery(orderID, bikeID string, progress int) {
+	if s.deliveryURL == "" {
+		return
+	}
+	event := BikeProgressEvent{
+		OrderID:  orderID,
+		BikeID:   bikeID,
+		Progress: progress,
+		Status:   StatusReserved,
+	}
+	body, err := json.Marshal(event)
+	if err != nil {
+		slog.Error("failed to marshal bike progress", "error", err)
+		return
+	}
+	resp, err := s.httpClient.Post(s.deliveryURL+"/bike-progress", "application/json", bytes.NewReader(body))
+	if err != nil {
+		slog.Warn("failed to send progress to delivery", "bikeId", bikeID, "error", err)
+		return
+	}
+	defer resp.Body.Close()
 }

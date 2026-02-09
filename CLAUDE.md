@@ -47,8 +47,7 @@ The Pizza application is composed by three services written in Go:
 - Kitchen service which will be responsible cooking the pizzas. 
 - Delivery service which will be responsible for the delivery of the pizza to the customer.
 
-The Store service must use Dapr Workflows to orchestrate the pizza order flow.
-The Kitchen and delivery services must use Dapr Pub/Sub to provide updates to the Store service.
+
 
 ## Best practices
 

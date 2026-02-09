@@ -36,7 +36,16 @@ type CookedItem struct {
 // AgentCookRequest represents the request body for the cooking-agent.
 // It contains a list of pizza names to be cooked.
 type AgentCookRequest struct {
-	Pizzas []string `json:"pizzas"`
+	Pizzas  []string `json:"pizzas"`
+	OrderID string   `json:"orderId"`
+}
+
+// OvenProgressEvent represents a progress update from the oven via the MCP tool.
+type OvenProgressEvent struct {
+	OrderID  string `json:"orderId"`
+	OvenID   string `json:"ovenId"`
+	Progress int    `json:"progress"`
+	Status   string `json:"status"`
 }
 
 // CookingUpdate represents a streaming update from the cooking agent.

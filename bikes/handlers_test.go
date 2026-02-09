@@ -367,3 +367,131 @@ func TestBikeEmitsEventsWhileReserved(t *testing.T) {
 	}
 	eventsMu.Unlock()
 }
+
+// TestBikePostsProgressToDeliveryService tests that autoRelease sends progress events
+// to the delivery service via HTTP POST, following the oven→kitchen pattern.
+func TestBikePostsProgressToDeliveryService(t *testing.T) {
+	type BikeProgressEvent struct {
+		OrderID  string `json:"orderId"`
+		BikeID   string `json:"bikeId"`
+		Progress int    `json:"progress"`
+		Status   string `json:"status"`
+	}
+
+	progressReceived := make(chan BikeProgressEvent, 10)
+	deliveryServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/bike-progress" && r.Method == http.MethodPost {
+			var event BikeProgressEvent
+			json.NewDecoder(r.Body).Decode(&event)
+			progressReceived <- event
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer deliveryServer.Close()
+
+	svc := NewBikeService()
+	svc.releaseDuration = func() time.Duration { return 100 * time.Millisecond }
+	svc.deliveryURL = deliveryServer.URL
+
+	r := chi.NewRouter()
+	r.Post("/bikes/{bikeId}", svc.HandleReserveBike)
+
+	body := strings.NewReader(`{"user": "john", "orderId": "order-456"}`)
+	req, err := http.NewRequest("POST", "/bikes/bike-1", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("reserve returned wrong status: got %v want %v", rr.Code, http.StatusOK)
+	}
+
+	// Collect progress events until autoRelease completes
+	var events []BikeProgressEvent
+	timeout := time.After(2 * time.Second)
+	for {
+		select {
+		case event := <-progressReceived:
+			events = append(events, event)
+			if len(events) == 4 {
+				goto done
+			}
+		case <-timeout:
+			t.Fatalf("timed out waiting for progress events, got %d", len(events))
+		}
+	}
+done:
+	// Verify 4 events with increasing progress
+	expectedProgress := []int{25, 50, 75, 100}
+	for i, event := range events {
+		if event.Progress != expectedProgress[i] {
+			t.Errorf("event %d: expected progress %d, got %d", i, expectedProgress[i], event.Progress)
+		}
+		if event.BikeID != "bike-1" {
+			t.Errorf("event %d: expected bikeId bike-1, got %s", i, event.BikeID)
+		}
+		if event.OrderID != "order-456" {
+			t.Errorf("event %d: expected orderId order-456, got %s", i, event.OrderID)
+		}
+		if event.Status != StatusReserved {
+			t.Errorf("event %d: expected status RESERVED, got %s", i, event.Status)
+		}
+	}
+}
+
+// TestBikeEmitsProgressPercentage tests that events emitted during autoRelease include
+// increasing progress percentages representing delivery completion.
+func TestBikeEmitsProgressPercentage(t *testing.T) {
+	svc := NewBikeService()
+	svc.releaseDuration = func() time.Duration { return 100 * time.Millisecond }
+
+	var events []BikeEvent
+	var eventsMu sync.Mutex
+	svc.eventEmitter = func(event BikeEvent) {
+		eventsMu.Lock()
+		events = append(events, event)
+		eventsMu.Unlock()
+	}
+
+	r := chi.NewRouter()
+	r.Post("/bikes/{bikeId}", svc.HandleReserveBike)
+
+	body := strings.NewReader(`{"user": "john", "orderId": "order-123"}`)
+	req, err := http.NewRequest("POST", "/bikes/bike-1", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("reserve returned wrong status: got %v want %v", rr.Code, http.StatusOK)
+	}
+
+	// Wait for auto-release to complete
+	time.Sleep(200 * time.Millisecond)
+
+	eventsMu.Lock()
+	defer eventsMu.Unlock()
+
+	if len(events) != 4 {
+		t.Fatalf("expected 4 events, got %d", len(events))
+	}
+
+	// Events should have progress 25, 50, 75, 100
+	expectedProgress := []int{25, 50, 75, 100}
+	for i, event := range events {
+		if event.Progress != expectedProgress[i] {
+			t.Errorf("event %d: expected progress %d, got %d", i, expectedProgress[i], event.Progress)
+		}
+		if event.OrderID != "order-123" {
+			t.Errorf("event %d: expected orderId order-123, got %s", i, event.OrderID)
+		}
+	}
+}

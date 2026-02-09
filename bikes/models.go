@@ -24,7 +24,17 @@ type BikeEvent struct {
 	BikeID    string    `json:"bikeId"`
 	Status    string    `json:"status"`
 	User      string    `json:"user"`
+	OrderID   string    `json:"orderId,omitempty"`
+	Progress  int       `json:"progress"`
 	Timestamp time.Time `json:"timestamp"`
+}
+
+// BikeProgressEvent represents a progress update sent to the delivery service.
+type BikeProgressEvent struct {
+	OrderID  string `json:"orderId"`
+	BikeID   string `json:"bikeId"`
+	Progress int    `json:"progress"`
+	Status   string `json:"status"`
 }
 
 func DefaultBikes() map[string]*Bike {

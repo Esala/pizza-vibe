@@ -128,6 +128,7 @@ services:
     environment:
       - INVENTORY_SERVICE_URL=http://inventory:8084
       - OVEN_SERVICE_URL=http://oven:8085
+      - KITCHEN_SERVICE_URL=http://kitchen:8081
     networks:
       - pizza-network
     healthcheck:

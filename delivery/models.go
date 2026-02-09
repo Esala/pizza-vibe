@@ -31,6 +31,14 @@ type AgentDeliverRequest struct {
 	OrderID string `json:"orderId"`
 }
 
+// BikeProgressEvent represents a progress update from the bike service during delivery.
+type BikeProgressEvent struct {
+	OrderID  string `json:"orderId"`
+	BikeID   string `json:"bikeId"`
+	Progress int    `json:"progress"`
+	Status   string `json:"status"`
+}
+
 // DeliveryUpdate represents a streaming update from the delivery agent.
 // These updates inform the client about the current action being performed.
 type DeliveryUpdate struct {

@@ -10,6 +10,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,6 +39,8 @@ type Delivery struct {
 	deliveryAgentURL string
 	httpClient       *http.Client
 	streamingClient  *http.Client // No timeout for SSE streaming connections
+	bikeOrders       map[string]uuid.UUID // bikeId → orderID mapping
+	bikeOrdersMu     sync.RWMutex
 }
 
 // NewDelivery creates a new Delivery instance.
@@ -48,6 +52,7 @@ func NewDelivery() *Delivery {
 			Timeout: 60 * time.Second,
 		},
 		streamingClient: &http.Client{}, // No timeout for SSE streaming
+		bikeOrders:      make(map[string]uuid.UUID),
 	}
 }
 
@@ -93,6 +98,42 @@ func (d *Delivery) HandleDeliver(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(resp)
+}
+
+// HandleBikeProgress handles POST /bike-progress requests from the bike service.
+// It receives bike delivery progress updates and forwards them as OrderEvents to the Store.
+func (d *Delivery) HandleBikeProgress(w http.ResponseWriter, r *http.Request) {
+	var event BikeProgressEvent
+	if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
+		slog.Warn("bike-progress: invalid JSON", "error", err)
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	orderID, err := uuid.Parse(strings.TrimSpace(event.OrderID))
+	if err != nil {
+		// Look up the real orderID from the bike-to-order mapping
+		d.bikeOrdersMu.RLock()
+		mappedID, ok := d.bikeOrders[event.BikeID]
+		d.bikeOrdersMu.RUnlock()
+		if !ok {
+			slog.Warn("bike-progress: no mapping for bike", "rawOrderId", event.OrderID, "bikeId", event.BikeID)
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		slog.Info("bike-progress: resolved orderId from bike mapping", "bikeId", event.BikeID, "orderId", mappedID)
+		orderID = mappedID
+	}
+
+	orderEvent := OrderEvent{
+		OrderID: orderID,
+		Status:  "bike_progress",
+		Source:  "delivery",
+		Message: fmt.Sprintf("Delivering on %s: %d%% complete", event.BikeID, event.Progress),
+	}
+	d.postEvent(context.Background(), orderEvent)
+
+	w.WriteHeader(http.StatusOK)
 }
 
 // deliverOrder calls the delivery-agent to deliver the order and forwards streaming updates to the store.
@@ -218,7 +259,22 @@ func (d *Delivery) parseSSEStream(body interface{ Read([]byte) (int, error) }, u
 }
 
 // sendDeliveryEvent sends a rich delivery update event to the store service.
+// It also records bike-to-order mappings when the agent reserves a bike,
+// so that HandleBikeProgress can resolve non-UUID orderIds.
 func (d *Delivery) sendDeliveryEvent(ctx context.Context, orderID uuid.UUID, update DeliveryUpdate) {
+	// Track bike reservations so we can map bikeId → orderID
+	if update.ToolName == "reserveBike" && update.ToolInput != "" {
+		var input struct {
+			BikeID string `json:"bikeId"`
+		}
+		if json.Unmarshal([]byte(update.ToolInput), &input) == nil && input.BikeID != "" {
+			d.bikeOrdersMu.Lock()
+			d.bikeOrders[input.BikeID] = orderID
+			d.bikeOrdersMu.Unlock()
+			slog.Info("recorded bike-to-order mapping", "bikeId", input.BikeID, "orderId", orderID)
+		}
+	}
+
 	event := OrderEvent{
 		OrderID:   orderID,
 		Status:    update.Action,

@@ -39,7 +39,9 @@ public class CookingResource {
     @Produces(MediaType.SERVER_SENT_EVENTS)
     public Multi<String> cookPizzasStream(CookRequest request) {
         String pizza = request.pizzas().getFirst();
-        return streamingCookingAgent.cookStream("Please cook the following pizza: " + pizza)
+        String orderId = request.orderId() != null ? request.orderId() : "unknown";
+        return streamingCookingAgent.cookStream(
+            "Please cook the following pizza: " + pizza + ". The order ID is: " + orderId)
             .map(this::convertToJson);
     }
 

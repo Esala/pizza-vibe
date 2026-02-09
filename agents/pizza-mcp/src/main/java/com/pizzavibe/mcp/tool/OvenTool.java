@@ -1,12 +1,15 @@
 package com.pizzavibe.mcp.tool;
 
+import com.pizzavibe.mcp.client.KitchenClient;
 import com.pizzavibe.mcp.client.OvenClient;
 import com.pizzavibe.mcp.model.Oven;
+import com.pizzavibe.mcp.model.OvenProgressEvent;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
+import org.jboss.logging.Logger;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -14,9 +17,15 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class OvenTool {
 
+    private static final Logger LOG = Logger.getLogger(OvenTool.class);
+
     @Inject
     @RestClient
     OvenClient ovenClient;
+
+    @Inject
+    @RestClient
+    KitchenClient kitchenClient;
 
     @Tool(description = "Get all pizza ovens with their current status (AVAILABLE or RESERVED)")
     public String getOvens() {
@@ -26,16 +35,20 @@ public class OvenTool {
             .collect(Collectors.joining("\n"));
     }
 
-    @Tool(description = "Wait for a pizza oven to finish cooking. Polls every 2 seconds and returns only when the oven is AVAILABLE again. Call this once after reserving an oven.")
-    public String getOven(@ToolArg(description = "The oven ID (e.g., oven-1, oven-2, oven-3, oven-4)") String ovenId) {
+    @Tool(description = "Wait for a pizza oven to finish cooking. Polls every 1 second and returns only when the oven is AVAILABLE again. Returns progress percentage while cooking. Call this once after reserving an oven.")
+    public String getOven(
+            @ToolArg(description = "The oven ID (e.g., oven-1, oven-2, oven-3, oven-4)") String ovenId,
+            @ToolArg(description = "The order ID to track progress for") String orderId) {
         int maxAttempts = 30;
         for (int i = 0; i < maxAttempts; i++) {
             Oven oven = ovenClient.getById(ovenId);
+            // Send progress event to kitchen
+            sendProgressToKitchen(orderId, ovenId, oven.progress(), oven.status());
             if (Oven.STATUS_AVAILABLE.equals(oven.status())) {
-                return "Oven: " + oven.id() + ", Status: " + oven.status();
+                return "Oven: " + oven.id() + ", Status: " + oven.status() + ", Progress: 100%";
             }
             try {
-                Thread.sleep(2000);
+                Thread.sleep(1000);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return "Error: polling interrupted for oven " + ovenId;
@@ -50,5 +63,15 @@ public class OvenTool {
             @ToolArg(description = "The user/cook name reserving the oven") String user) {
         Oven oven = ovenClient.reserve(ovenId, user);
         return "Oven: " + oven.id() + ", Status: " + oven.status() + ", User: " + oven.user();
+    }
+
+    private void sendProgressToKitchen(String orderId, String ovenId, int progress, String status) {
+        try {
+            String cleanOrderId = orderId != null ? orderId.trim() : "";
+            OvenProgressEvent event = new OvenProgressEvent(cleanOrderId, ovenId, progress, status);
+            kitchenClient.sendProgress(event);
+        } catch (Exception e) {
+            LOG.warn("Failed to send progress to kitchen (orderId=" + orderId + "): " + e.getMessage());
+        }
     }
 }

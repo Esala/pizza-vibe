@@ -11,6 +11,8 @@ import (
 	"log/slog"
 	"math/rand"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -41,6 +43,8 @@ type Kitchen struct {
 	httpClient      *http.Client
 	streamingClient *http.Client // No timeout for SSE streaming connections
 	cookingTimeFunc func() int
+	ovenOrders      map[string]uuid.UUID // ovenId → orderID mapping
+	ovenOrdersMu    sync.RWMutex
 }
 
 // NewKitchen creates a new Kitchen instance with a seeded random number generator.
@@ -55,6 +59,7 @@ func NewKitchen() *Kitchen {
 		},
 		streamingClient: &http.Client{}, // No timeout for SSE streaming
 		cookingTimeFunc: func() int { return rng.Intn(10) + 1 },
+		ovenOrders:      make(map[string]uuid.UUID),
 	}
 }
 
@@ -121,7 +126,7 @@ func (k *Kitchen) cookItems(ctx context.Context, orderID uuid.UUID, items []Orde
 			// Call cooking-agent with streaming to get updates
 			updates := make(chan CookingUpdate, 100)
 			go func() {
-				err := k.callCookingAgentStream(ctx, item.PizzaType, updates)
+				err := k.callCookingAgentStream(ctx, item.PizzaType, orderID, updates)
 				if err != nil {
 					slog.Error("failed to cook pizza via agent", "orderId", orderID, "pizzaType", item.PizzaType, "error", err)
 					k.sendEvent(ctx, orderID, fmt.Sprintf("failed to cook %s: %v", item.PizzaType, err))
@@ -153,10 +158,10 @@ func (k *Kitchen) cookItems(ctx context.Context, orderID uuid.UUID, items []Orde
 
 // callCookingAgent sends a request to the cooking-agent streaming endpoint
 // and returns a channel of CookingUpdate events.
-func (k *Kitchen) callCookingAgent(ctx context.Context, pizzaType string) (string, error) {
+func (k *Kitchen) callCookingAgent(ctx context.Context, pizzaType string, orderID uuid.UUID) (string, error) {
 	updates := make(chan CookingUpdate, 100)
 
-	err := k.callCookingAgentStream(ctx, pizzaType, updates)
+	err := k.callCookingAgentStream(ctx, pizzaType, orderID, updates)
 	if err != nil {
 		return "", err
 	}
@@ -171,13 +176,51 @@ func (k *Kitchen) callCookingAgent(ctx context.Context, pizzaType string) (strin
 	return result, nil
 }
 
+// HandleOvenProgress handles POST /oven-progress requests from the MCP OvenTool.
+// It receives oven progress updates and forwards them as OrderEvents to the Store.
+func (k *Kitchen) HandleOvenProgress(w http.ResponseWriter, r *http.Request) {
+	var event OvenProgressEvent
+	if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
+		slog.Warn("oven-progress: invalid JSON", "error", err)
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	orderID, err := uuid.Parse(strings.TrimSpace(event.OrderID))
+	if err != nil {
+		// LLM agents may pass non-UUID orderIds. Look up the real orderID
+		// from the oven-to-order mapping established during oven reservation.
+		k.ovenOrdersMu.RLock()
+		mappedID, ok := k.ovenOrders[event.OvenID]
+		k.ovenOrdersMu.RUnlock()
+		if !ok {
+			slog.Warn("oven-progress: no mapping for oven", "rawOrderId", event.OrderID, "ovenId", event.OvenID)
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		slog.Info("oven-progress: resolved orderId from oven mapping", "ovenId", event.OvenID, "orderId", mappedID)
+		orderID = mappedID
+	}
+
+	orderEvent := OrderEvent{
+		OrderID: orderID,
+		Status:  "oven_progress",
+		Source:  "kitchen",
+		Message: fmt.Sprintf("Cooking in %s: %d%% complete", event.OvenID, event.Progress),
+	}
+	k.postEvent(context.Background(), orderEvent)
+
+	w.WriteHeader(http.StatusOK)
+}
+
 // callCookingAgentStream sends a request to the cooking-agent streaming endpoint
 // and sends CookingUpdate events to the provided channel.
-func (k *Kitchen) callCookingAgentStream(ctx context.Context, pizzaType string, updates chan<- CookingUpdate) error {
+func (k *Kitchen) callCookingAgentStream(ctx context.Context, pizzaType string, orderID uuid.UUID, updates chan<- CookingUpdate) error {
 	defer close(updates)
 
 	agentReq := AgentCookRequest{
-		Pizzas: []string{pizzaType},
+		Pizzas:  []string{pizzaType},
+		OrderID: orderID.String(),
 	}
 
 	body, err := json.Marshal(agentReq)
@@ -263,7 +306,22 @@ func (k *Kitchen) parseSSEStream(body interface{ Read([]byte) (int, error) }, up
 }
 
 // sendCookingEvent sends a rich cooking update event to the store service.
+// It also records oven-to-order mappings when the agent reserves an oven,
+// so that HandleOvenProgress can resolve non-UUID orderIds from the LLM.
 func (k *Kitchen) sendCookingEvent(ctx context.Context, orderID uuid.UUID, update CookingUpdate) {
+	// Track oven reservations so we can map ovenId → orderID
+	if update.ToolName == "reserveOven" && update.ToolInput != "" {
+		var input struct {
+			OvenID string `json:"ovenId"`
+		}
+		if json.Unmarshal([]byte(update.ToolInput), &input) == nil && input.OvenID != "" {
+			k.ovenOrdersMu.Lock()
+			k.ovenOrders[input.OvenID] = orderID
+			k.ovenOrdersMu.Unlock()
+			slog.Info("recorded oven-to-order mapping", "ovenId", input.OvenID, "orderId", orderID)
+		}
+	}
+
 	event := OrderEvent{
 		OrderID:   orderID,
 		Status:    update.Action,

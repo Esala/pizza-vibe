@@ -1,7 +1,9 @@
 package com.pizzavibe.mcp.tool;
 
+import com.pizzavibe.mcp.client.KitchenClient;
 import com.pizzavibe.mcp.client.OvenClient;
 import com.pizzavibe.mcp.model.Oven;
+import com.pizzavibe.mcp.model.OvenProgressEvent;
 import io.quarkus.test.Mock;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -31,7 +33,7 @@ class OvenToolTest {
 
     @Test
     void shouldGetOvenById() {
-        String result = ovenTool.getOven("oven-1");
+        String result = ovenTool.getOven("oven-1", "order-123");
 
         assertNotNull(result);
         assertTrue(result.contains("oven-1"));
@@ -56,21 +58,32 @@ class OvenToolTest {
         @Override
         public List<Oven> getAll() {
             return List.of(
-                new Oven("oven-1", "AVAILABLE", null, Instant.now()),
-                new Oven("oven-2", "AVAILABLE", null, Instant.now()),
-                new Oven("oven-3", "AVAILABLE", null, Instant.now()),
-                new Oven("oven-4", "AVAILABLE", null, Instant.now())
+                new Oven("oven-1", "AVAILABLE", null, 0, Instant.now()),
+                new Oven("oven-2", "AVAILABLE", null, 0, Instant.now()),
+                new Oven("oven-3", "AVAILABLE", null, 0, Instant.now()),
+                new Oven("oven-4", "AVAILABLE", null, 0, Instant.now())
             );
         }
 
         @Override
         public Oven getById(String ovenId) {
-            return new Oven(ovenId, "AVAILABLE", null, Instant.now());
+            return new Oven(ovenId, "AVAILABLE", null, 0, Instant.now());
         }
 
         @Override
         public Oven reserve(String ovenId, String user) {
-            return new Oven(ovenId, "RESERVED", user, Instant.now());
+            return new Oven(ovenId, "RESERVED", user, 0, Instant.now());
+        }
+    }
+
+    @Mock
+    @ApplicationScoped
+    @RestClient
+    public static class MockKitchenClient implements KitchenClient {
+
+        @Override
+        public void sendProgress(OvenProgressEvent event) {
+            // No-op for tests
         }
     }
 }

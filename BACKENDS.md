@@ -425,6 +425,25 @@ Requirements:
     - If the oven is available, return 0
 - Update the Cooking agent to receive the percentage of the cooking process completed, so it can be sent to the kitchen service
 
+Output <promise>DONE</promise> when all tests green.
 
+## Implement SSE Channel between Bike tool and Delivery service
+
+
+Update the bike service to stream back progress when delivering an order using TDD.
+
+Process:
+1. Write failing test for next requirement
+2. Implement minimal code to pass
+3. Run tests
+4. If failing, fix and retry
+5. Refactor if needed
+6. Repeat for all requirements
+
+Requirements:
+- Looking at the code in the bikes/ directory, make changes to autoRelease function to stream back the delivery progress to the delivery service.
+- Create a data model to include the percentage of the delivery process completed
+- Follow a similar pattern implemented between the oven and kitchen service
+- The delivery service should send the percentage of the delivery process completed to the store service via events to they can be displayed in the frontend
 
 Output <promise>DONE</promise> when all tests green.

@@ -155,7 +155,13 @@ export default function Home() {
         </p>
       )}
       {events.length > 0 && (() => {
-        const progressPercent = isCooked ? 100 : Math.min(99, kitchenEvents.length * 20);
+        const latestOvenProgress = kitchenEvents
+          .filter((e) => e.status === 'oven_progress')
+          .slice(-1)[0];
+        const ovenPercent = latestOvenProgress?.message
+          ? parseInt(latestOvenProgress.message.match(/(\d+)% complete/)?.[1] || '0', 10)
+          : null;
+        const progressPercent = isCooked ? 100 : (ovenPercent !== null ? Math.min(99, ovenPercent) : Math.min(99, kitchenEvents.length * 20));
         return (
           <p data-testid="cooking-progress">
             Cooking progress: {progressPercent}%

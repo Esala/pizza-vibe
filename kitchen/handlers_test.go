@@ -121,6 +121,212 @@ func TestCookEndpointReturnsResponse(t *testing.T) {
 	}
 }
 
+// TestOvenProgressEndpoint tests that POSTing to /oven-progress forwards an OrderEvent to the store.
+func TestOvenProgressEndpoint(t *testing.T) {
+	eventsReceived := make(chan OrderEvent, 10)
+	storeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/events" {
+			var event OrderEvent
+			json.NewDecoder(r.Body).Decode(&event)
+			eventsReceived <- event
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer storeServer.Close()
+
+	kitchen := NewKitchenWithConfig(KitchenConfig{
+		StoreURL: storeServer.URL,
+	})
+
+	router := chi.NewRouter()
+	router.Post("/oven-progress", kitchen.HandleOvenProgress)
+
+	orderID := uuid.New()
+	progressEvent := OvenProgressEvent{
+		OrderID:  orderID.String(),
+		OvenID:   "oven-1",
+		Progress: 50,
+		Status:   "RESERVED",
+	}
+	body, _ := json.Marshal(progressEvent)
+
+	httpReq := httptest.NewRequest(http.MethodPost, "/oven-progress", bytes.NewReader(body))
+	httpReq.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, httpReq)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rr.Code)
+	}
+
+	// Verify the event was forwarded to the store
+	timeout := time.After(2 * time.Second)
+	select {
+	case event := <-eventsReceived:
+		if event.OrderID != orderID {
+			t.Errorf("expected orderId %s, got %s", orderID, event.OrderID)
+		}
+		if event.Status != "oven_progress" {
+			t.Errorf("expected status 'oven_progress', got %s", event.Status)
+		}
+		if event.Source != "kitchen" {
+			t.Errorf("expected source 'kitchen', got %s", event.Source)
+		}
+		if event.Message == "" {
+			t.Error("expected non-empty message")
+		}
+	case <-timeout:
+		t.Fatal("timed out waiting for event to be forwarded to store")
+	}
+}
+
+// TestOvenProgressEndpointInvalidJSON tests that /oven-progress returns bad request for invalid JSON.
+func TestOvenProgressEndpointInvalidJSON(t *testing.T) {
+	kitchen := NewKitchen()
+	router := chi.NewRouter()
+	router.Post("/oven-progress", kitchen.HandleOvenProgress)
+
+	httpReq := httptest.NewRequest(http.MethodPost, "/oven-progress", bytes.NewReader([]byte("invalid")))
+	httpReq.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, httpReq)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, rr.Code)
+	}
+}
+
+// TestOvenProgressUsesOvenToOrderMapping tests that /oven-progress forwards events to the store
+// even when the LLM passes a non-UUID orderId, by using the oven-to-order mapping established
+// when the cooking agent reserves an oven.
+func TestOvenProgressUsesOvenToOrderMapping(t *testing.T) {
+	// Mock cooking-agent returns a reserveOven action for oven-1
+	agentServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/cook/stream" && r.Method == http.MethodPost {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusOK)
+			flusher, _ := w.(http.Flusher)
+
+			updates := []CookingUpdate{
+				{Type: "action", Action: "reserving_oven", Message: "Reserving oven-1",
+					ToolName: "reserveOven", ToolInput: `{"ovenId":"oven-1","user":"cooking-agent-joe"}`},
+				{Type: "result", Action: "completed", Message: "Done"},
+			}
+			for _, u := range updates {
+				data, _ := json.Marshal(u)
+				w.Write([]byte("data: " + string(data) + "\n\n"))
+				flusher.Flush()
+			}
+		}
+	}))
+	defer agentServer.Close()
+
+	eventsReceived := make(chan OrderEvent, 50)
+	storeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/events" {
+			var event OrderEvent
+			json.NewDecoder(r.Body).Decode(&event)
+			eventsReceived <- event
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer storeServer.Close()
+
+	kitchen := NewKitchenWithConfig(KitchenConfig{
+		StoreURL:        storeServer.URL,
+		CookingAgentURL: agentServer.URL,
+	})
+
+	router := chi.NewRouter()
+	router.Post("/cook", kitchen.HandleCook)
+	router.Post("/oven-progress", kitchen.HandleOvenProgress)
+
+	orderID := uuid.New()
+	cookReq := CookRequest{
+		OrderID:    orderID,
+		OrderItems: []OrderItem{{PizzaType: "Margherita", Quantity: 1}},
+	}
+	body, _ := json.Marshal(cookReq)
+
+	// Start cooking — this establishes the oven-1 → orderID mapping
+	httpReq := httptest.NewRequest(http.MethodPost, "/cook", bytes.NewReader(body))
+	httpReq.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, httpReq)
+
+	// Wait for DONE so the mapping is established
+	timeout := time.After(5 * time.Second)
+	for {
+		select {
+		case event := <-eventsReceived:
+			if event.Status == "DONE" {
+				goto cookingDone
+			}
+		case <-timeout:
+			t.Fatal("timed out waiting for DONE event")
+		}
+	}
+cookingDone:
+
+	// POST oven-progress with non-UUID orderId but the mapped ovenId
+	progressEvent := OvenProgressEvent{
+		OrderID:  "order-1",
+		OvenID:   "oven-1",
+		Progress: 75,
+		Status:   "RESERVED",
+	}
+	body, _ = json.Marshal(progressEvent)
+	httpReq = httptest.NewRequest(http.MethodPost, "/oven-progress", bytes.NewReader(body))
+	httpReq.Header.Set("Content-Type", "application/json")
+	rr = httptest.NewRecorder()
+	router.ServeHTTP(rr, httpReq)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", rr.Code)
+	}
+
+	// Verify the event was forwarded to store with the REAL UUID
+	select {
+	case event := <-eventsReceived:
+		if event.OrderID != orderID {
+			t.Errorf("expected orderId %s, got %s", orderID, event.OrderID)
+		}
+		if event.Status != "oven_progress" {
+			t.Errorf("expected status 'oven_progress', got %s", event.Status)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for oven-progress event to be forwarded to store")
+	}
+}
+
+// TestOvenProgressUnknownOvenReturnsOK tests that /oven-progress returns 200 even when
+// the orderId is not a UUID and the ovenId has no mapping, so the OvenTool isn't disrupted.
+func TestOvenProgressUnknownOvenReturnsOK(t *testing.T) {
+	kitchen := NewKitchen()
+	router := chi.NewRouter()
+	router.Post("/oven-progress", kitchen.HandleOvenProgress)
+
+	progressEvent := OvenProgressEvent{
+		OrderID:  "not-a-uuid",
+		OvenID:   "oven-99",
+		Progress: 50,
+		Status:   "RESERVED",
+	}
+	body, _ := json.Marshal(progressEvent)
+
+	httpReq := httptest.NewRequest(http.MethodPost, "/oven-progress", bytes.NewReader(body))
+	httpReq.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, httpReq)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rr.Code)
+	}
+}
+
 // TestCookCallsCookingAgentForEachPizza tests that cooking calls the cooking-agent for each pizza.
 func TestCookCallsCookingAgentForEachPizza(t *testing.T) {
 	// Track requests received by the mock cooking-agent
@@ -210,6 +416,13 @@ func TestCookCallsCookingAgentForEachPizza(t *testing.T) {
 
 	if len(requests) != 3 {
 		t.Errorf("expected 3 agent requests, got %d", len(requests))
+	}
+
+	// Verify orderId is included in agent requests
+	for i, agentReq := range requests {
+		if agentReq.OrderID != orderID.String() {
+			t.Errorf("request %d: expected orderId %s, got %s", i, orderID.String(), agentReq.OrderID)
+		}
 	}
 
 	// Wait for events - we expect multiple streaming updates per pizza + DONE

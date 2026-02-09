@@ -609,6 +609,212 @@ done:
 	}
 }
 
+// TestBikeProgressEndpoint tests that POST /bike-progress forwards progress to the store.
+func TestBikeProgressEndpoint(t *testing.T) {
+	eventsReceived := make(chan OrderEvent, 10)
+	storeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/events" {
+			var event OrderEvent
+			json.NewDecoder(r.Body).Decode(&event)
+			eventsReceived <- event
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer storeServer.Close()
+
+	d := NewDeliveryWithConfig(DeliveryConfig{
+		StoreURL: storeServer.URL,
+	})
+
+	router := chi.NewRouter()
+	router.Post("/bike-progress", d.HandleBikeProgress)
+
+	orderID := uuid.New()
+	progressEvent := BikeProgressEvent{
+		OrderID:  orderID.String(),
+		BikeID:   "bike-1",
+		Progress: 50,
+		Status:   "RESERVED",
+	}
+	body, _ := json.Marshal(progressEvent)
+
+	httpReq := httptest.NewRequest(http.MethodPost, "/bike-progress", bytes.NewReader(body))
+	httpReq.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, httpReq)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rr.Code)
+	}
+
+	// Verify the event was forwarded to the store
+	timeout := time.After(2 * time.Second)
+	select {
+	case event := <-eventsReceived:
+		if event.OrderID != orderID {
+			t.Errorf("expected orderId %s, got %s", orderID, event.OrderID)
+		}
+		if event.Status != "bike_progress" {
+			t.Errorf("expected status 'bike_progress', got %s", event.Status)
+		}
+		if event.Source != "delivery" {
+			t.Errorf("expected source 'delivery', got %s", event.Source)
+		}
+		if event.Message == "" {
+			t.Error("expected non-empty message")
+		}
+	case <-timeout:
+		t.Fatal("timed out waiting for event to be forwarded to store")
+	}
+}
+
+// TestBikeProgressUsesBikeToOrderMapping tests that /bike-progress forwards events to the store
+// even when the orderId is not a UUID, by using the bike-to-order mapping established
+// when the delivery agent reserves a bike.
+func TestBikeProgressUsesBikeToOrderMapping(t *testing.T) {
+	// Mock delivery-agent returns a reserveBike action for bike-1
+	agentServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/deliver/stream" && r.Method == http.MethodPost {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusOK)
+			flusher, _ := w.(http.Flusher)
+
+			updates := []DeliveryUpdate{
+				{Type: "action", Action: "reserving_bike", Message: "Reserving bike-1",
+					ToolName: "reserveBike", ToolInput: `{"bikeId":"bike-1","user":"delivery-agent-dave"}`},
+				{Type: "result", Action: "completed", Message: "Done"},
+			}
+			for _, u := range updates {
+				data, _ := json.Marshal(u)
+				w.Write([]byte("data: " + string(data) + "\n\n"))
+				flusher.Flush()
+			}
+		}
+	}))
+	defer agentServer.Close()
+
+	eventsReceived := make(chan OrderEvent, 50)
+	storeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/events" {
+			var event OrderEvent
+			json.NewDecoder(r.Body).Decode(&event)
+			eventsReceived <- event
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer storeServer.Close()
+
+	d := NewDeliveryWithConfig(DeliveryConfig{
+		StoreURL:         storeServer.URL,
+		DeliveryAgentURL: agentServer.URL,
+	})
+
+	router := chi.NewRouter()
+	router.Post("/deliver", d.HandleDeliver)
+	router.Post("/bike-progress", d.HandleBikeProgress)
+
+	orderID := uuid.New()
+	deliverReq := DeliverRequest{
+		OrderID:    orderID,
+		OrderItems: []OrderItem{{PizzaType: "Margherita", Quantity: 1}},
+	}
+	body, _ := json.Marshal(deliverReq)
+
+	// Start delivery — this establishes the bike-1 → orderID mapping
+	httpReq := httptest.NewRequest(http.MethodPost, "/deliver", bytes.NewReader(body))
+	httpReq.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, httpReq)
+
+	// Wait for DELIVERED so the mapping is established
+	timeout := time.After(5 * time.Second)
+	for {
+		select {
+		case event := <-eventsReceived:
+			if event.Status == "DELIVERED" {
+				goto deliveryDone
+			}
+		case <-timeout:
+			t.Fatal("timed out waiting for DELIVERED event")
+		}
+	}
+deliveryDone:
+
+	// POST bike-progress with non-UUID orderId but the mapped bikeId
+	progressEvent := BikeProgressEvent{
+		OrderID:  "order-1",
+		BikeID:   "bike-1",
+		Progress: 75,
+		Status:   "RESERVED",
+	}
+	body, _ = json.Marshal(progressEvent)
+	httpReq = httptest.NewRequest(http.MethodPost, "/bike-progress", bytes.NewReader(body))
+	httpReq.Header.Set("Content-Type", "application/json")
+	rr = httptest.NewRecorder()
+	router.ServeHTTP(rr, httpReq)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", rr.Code)
+	}
+
+	// Verify the event was forwarded to store with the REAL UUID
+	select {
+	case event := <-eventsReceived:
+		if event.OrderID != orderID {
+			t.Errorf("expected orderId %s, got %s", orderID, event.OrderID)
+		}
+		if event.Status != "bike_progress" {
+			t.Errorf("expected status 'bike_progress', got %s", event.Status)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for bike-progress event to be forwarded to store")
+	}
+}
+
+// TestBikeProgressUnknownBikeReturnsOK tests that /bike-progress returns 200 even when
+// the orderId is not a UUID and the bikeId has no mapping.
+func TestBikeProgressUnknownBikeReturnsOK(t *testing.T) {
+	d := NewDelivery()
+	router := chi.NewRouter()
+	router.Post("/bike-progress", d.HandleBikeProgress)
+
+	progressEvent := BikeProgressEvent{
+		OrderID:  "not-a-uuid",
+		BikeID:   "bike-99",
+		Progress: 50,
+		Status:   "RESERVED",
+	}
+	body, _ := json.Marshal(progressEvent)
+
+	httpReq := httptest.NewRequest(http.MethodPost, "/bike-progress", bytes.NewReader(body))
+	httpReq.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, httpReq)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rr.Code)
+	}
+}
+
+// TestBikeProgressEndpointInvalidJSON tests that /bike-progress returns bad request for invalid JSON.
+func TestBikeProgressEndpointInvalidJSON(t *testing.T) {
+	d := NewDelivery()
+	router := chi.NewRouter()
+	router.Post("/bike-progress", d.HandleBikeProgress)
+
+	httpReq := httptest.NewRequest(http.MethodPost, "/bike-progress", bytes.NewReader([]byte("invalid")))
+	httpReq.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, httpReq)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, rr.Code)
+	}
+}
+
 // TestDeliverSendsDeliveredEventAtEnd tests that a DELIVERED event is always sent
 // after the agent completes, regardless of streaming content.
 func TestDeliverSendsDeliveredEventAtEnd(t *testing.T) {

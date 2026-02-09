@@ -34,6 +34,7 @@ func main() {
 
 	// Register routes
 	r.Post("/cook", k.HandleCook)
+	r.Post("/oven-progress", k.HandleOvenProgress)
 
 	// Health check endpoint
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {

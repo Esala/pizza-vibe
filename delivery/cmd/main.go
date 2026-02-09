@@ -38,6 +38,7 @@ func main() {
 
 	// Register routes
 	r.Post("/deliver", d.HandleDeliver)
+	r.Post("/bike-progress", d.HandleBikeProgress)
 
 	// Health check endpoint
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
