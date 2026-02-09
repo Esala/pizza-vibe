@@ -1,12 +1,19 @@
 import type { Metadata } from "next";
-import { Eczar } from "next/font/google";
+import { Geist } from "next/font/google";
+import { Knewave } from "next/font/google";
+import "./tokens.css";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
 
-const eczar = Eczar({
+const geist = Geist({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-eczar",
+  variable: "--font-geist",
+});
+
+const knewave = Knewave({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-knewave",
 });
 
 export const metadata: Metadata = {
@@ -20,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={eczar.variable}>
+    <html lang="en" className={`${geist.variable} ${knewave.variable}`}>
       <body>
         <Navigation />
         {children}

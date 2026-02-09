@@ -1,36 +1,63 @@
-@import './tokens.css';
-
+/* Reset */
 * {
   box-sizing: border-box;
   padding: 0;
   margin: 0;
 }
 
+/* Body */
 body {
-  font-family: var(--font-family-body), Arial, Helvetica, sans-serif;
+  font-family: var(--type-body-default-font-family);
   font-size: var(--type-body-default-font-size);
-  line-height: var(--type-body-default-line-height);
   font-weight: var(--type-body-default-font-weight);
+  line-height: var(--type-body-default-line-height);
+  background-color: var(--color-background-default);
+  color: var(--color-text-default);
 }
 
 /* Headings */
 h1 {
-  font-family: var(--font-family-heading);
+  font-family: var(--type-heading-h1-font-family);
   font-size: var(--type-heading-h1-font-size);
-  line-height: var(--type-heading-h1-line-height);
   font-weight: var(--type-heading-h1-font-weight);
+  line-height: var(--type-heading-h1-line-height);
 }
 
 h2 {
-  font-family: var(--font-family-heading);
+  font-family: var(--type-heading-h2-font-family);
   font-size: var(--type-heading-h2-font-size);
-  line-height: var(--type-heading-h2-line-height);
   font-weight: var(--type-heading-h2-font-weight);
+  line-height: var(--type-heading-h2-line-height);
 }
 
 h3 {
-  font-family: var(--font-family-heading);
+  font-family: var(--type-heading-h3-font-family);
   font-size: var(--type-heading-h3-font-size);
-  line-height: var(--type-heading-h3-line-height);
   font-weight: var(--type-heading-h3-font-weight);
+  line-height: var(--type-heading-h3-line-height);
+}
+
+/* Paragraphs */
+p {
+  font-family: var(--type-body-default-font-family);
+  font-size: var(--type-body-default-font-size);
+  font-weight: var(--type-body-default-font-weight);
+  line-height: var(--type-body-default-line-height);
+}
+
+small {
+  font-family: var(--type-body-small-font-family);
+  font-size: var(--type-body-small-font-size);
+  font-weight: var(--type-body-small-font-weight);
+  line-height: var(--type-body-small-line-height);
+}
+
+/* Links */
+a {
+  color: var(--color-text-primary-default);
+}
+
+/* Main content area */
+main {
+  padding: var(--space-spacing-l);
 }

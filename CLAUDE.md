@@ -62,7 +62,34 @@ Frontend:
 - Do not add styles unless it is specified by the user.
 - When creating content in pages, only add what is explicitly requested or ask if recommending additional content is needed.
 - Never add styles unless specifically requested by the user.
-- Never use Tailwind CSS. Use CSS variables and CSS modules for component styles.
+- `globals.css` must only contain global element styles (headings, paragraphs, links, body, resets). Component-specific styles must go in CSS module files (e.g., `Navigation.module.css`).
+- Before working on the frontend, check `front-end/figma-nodes.md` for the Figma URL tree. Ask the user if new pages/nodes have been added.
+
+### Frontend Work Modes
+
+The frontend has two distinct work modes. Always confirm which mode is active before making changes:
+
+**1. Component Creation/Update Mode**
+- Focus: Building and updating the component library.
+- Only modify files inside `src/components/` and the Components Showcase page (`src/app/components/page.tsx`).
+- Do NOT modify any application pages or layouts (e.g., `layout.tsx`, `page.tsx`, route pages).
+- Every new or updated component must be added to the Components Showcase page for visual validation.
+
+**2. Page Design Mode**
+- Focus: Designing application pages and layouts using the existing component library.
+- Use the created components to build pages and update layouts.
+- May modify `layout.tsx`, route pages, and other application files.
+- Avoid creating new components in this mode — if a component is missing, switch to Component Creation mode first.
+
+### Component Organization
+
+- Each component must live in its own folder: `src/components/<ComponentName>/`
+  - `<ComponentName>.tsx` — the component
+  - `<ComponentName>.module.css` — styles (using tokens from `tokens.css`)
+  - `index.ts` — barrel export (`export { default } from './<ComponentName>'`)
+- Child/sub-components must be nested inside their parent component's folder:
+  - Example: `src/components/Header/HeaderNavItem/HeaderNavItem.tsx`
+- Images and SVG assets go in `public/images/`.
 
 Backend:
 - Always keep update the docker-compose.yaml file with all the services of the application.
@@ -76,6 +103,20 @@ Backend:
 The frontend design system is managed through Figma via MCP server connection. This is a **strict** workflow - no exceptions.
 
 ### Figma Connection Details
+- **File URL**: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit
+- **File Key**: `Iia6bIqfQwSvXxTnfedTXj`
+- **Tokens File**: `front-end/src/app/tokens.css`
+
+### Available Token Categories and Figma Node IDs
+- Typography (node: `1:2`) - H1 (Knewave), H2, H3, Body Default, Body Small (Geist)
+- Colors - Text (node: `98:3`) - default, subtle, primary, secondary, tertiary, inverted
+- Colors - Background (from nodes: `98:24`, `103:130`, `103:138`) - default, primary, secondary, inverted
+- Colors - Border (node: `98:15`) - default, subtle
+- Border Widths (node: `98:65`) - thin, default, thick, thicker
+- Spacing (nodes: `98:24` padding, `98:44` margin, `98:51` gap)
+- Spacing Scale (node: `102:100`) - s, m, l, xl, xxl
+- Corners (node: `127:20`) - s, m, l, xl
+- Cover (node: `7:2`) - brand showcase
 - **File URL**: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/Project-Library
 - **File Key**: `Iia6bIqfQwSvXxTnfedTXj`
 - **Tokens File**: `front-end/src/app/tokens.css`
@@ -91,9 +132,9 @@ The frontend design system is managed through Figma via MCP server connection. T
 - Line heights → Must use `--type-*-line-height` variables
 - Font weights → Must use `--type-*-font-weight` variables
 - Spacing (padding, margin, gap) → Must use `--space-*` variables
-- Border radius → Must use `--radius-*` variables
-- Shadows → Must use `--shadow-*` variables
-- Breakpoints → Must use `--breakpoint-*` variables
+- Border widths → Must use `--border-width-*` variables
+- Border colors → Must use `--color-border-*` variables
+- Border radius → Must use `--corner-*` variables
 
 **STRICT: Check Figma before any style work.** Before adding or modifying any styles:
 1. Call `mcp__figma-remote-mcp__get_variable_defs` on the relevant Figma node
