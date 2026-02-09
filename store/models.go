@@ -3,11 +3,7 @@
 // and sends real-time updates to frontend clients via WebSocket.
 package store
 
-import (
-	"encoding/json"
-
-	"github.com/google/uuid"
-)
+import "github.com/google/uuid"
 
 // OrderItem represents a single item in an order, containing the pizza type
 // and the quantity requested.
@@ -23,25 +19,4 @@ type Order struct {
 	OrderItems  []OrderItem `json:"orderItems"`
 	OrderData   string      `json:"orderData"`
 	OrderStatus string      `json:"orderStatus"`
-}
-
-// MarshalJSON serializes the Order to JSON format.
-func (o Order) MarshalJSON() ([]byte, error) {
-	type Alias Order
-	return json.Marshal(&struct {
-		Alias
-	}{
-		Alias: Alias(o),
-	})
-}
-
-// UnmarshalJSON deserializes JSON data into an Order.
-func (o *Order) UnmarshalJSON(data []byte) error {
-	type Alias Order
-	aux := &struct {
-		*Alias
-	}{
-		Alias: (*Alias)(o),
-	}
-	return json.Unmarshal(data, aux)
 }

@@ -67,7 +67,9 @@ Frontend:
 Backend:
 - Always keep update the docker-compose.yaml file with all the services of the application.
 - Run `./scripts/test-docker-compose.sh` to validate docker-compose changes before committing.
-- Provide Kubernetes manifests for each service and infrastructure components.
+- Always provide Kubernetes manifests for each service and infrastructure component.
+- Always implement Dockerfile for each service
+
 
 ## Figma Design System Integration (STRICT MODE)
 

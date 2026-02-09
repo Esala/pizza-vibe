@@ -10,6 +10,8 @@ export default function Navigation() {
     { href: '/', label: 'Order' },
     { href: '/kitchen', label: 'Kitchen' },
     { href: '/delivery', label: 'Delivery' },
+    { href: '/inventory', label: 'Inventory' },
+    { href: '/oven', label: 'Ovens' },
     { href: '/management', label: 'Management' },
   ];
 

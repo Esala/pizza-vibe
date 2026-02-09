@@ -1,6 +1,7 @@
 package store
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/google/uuid"
@@ -66,14 +67,14 @@ func TestOrderJSONSerialization(t *testing.T) {
 	}
 
 	// Test JSON marshaling
-	data, err := order.MarshalJSON()
+	data, err := json.Marshal(order)
 	if err != nil {
 		t.Fatalf("failed to marshal order: %v", err)
 	}
 
 	// Test JSON unmarshaling
 	var decoded Order
-	err = decoded.UnmarshalJSON(data)
+	err = json.Unmarshal(data, &decoded)
 	if err != nil {
 		t.Fatalf("failed to unmarshal order: %v", err)
 	}

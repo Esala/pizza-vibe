@@ -4,8 +4,10 @@ package kitchen
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"time"
@@ -38,9 +40,11 @@ type Kitchen struct {
 func NewKitchen() *Kitchen {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	return &Kitchen{
-		rng:             rng,
-		storeURL:        "http://store:8080",
-		httpClient:      &http.Client{},
+		rng:      rng,
+		storeURL: "http://store:8080",
+		httpClient: &http.Client{
+			Timeout: 10 * time.Second,
+		},
 		cookingTimeFunc: func() int { return rng.Intn(10) + 1 },
 	}
 }
@@ -73,8 +77,10 @@ func (k *Kitchen) HandleCook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Start cooking in a goroutine
-	go k.cookItems(req.OrderID.String(), req.OrderItems)
+	slog.Info("cook request received", "orderId", req.OrderID, "items", len(req.OrderItems))
+
+	// Start cooking in a goroutine (background; detach from request context)
+	go k.cookItems(context.Background(), req.OrderID, req.OrderItems)
 
 	// Return accepted response immediately
 	resp := CookResponse{
@@ -89,14 +95,8 @@ func (k *Kitchen) HandleCook(w http.ResponseWriter, r *http.Request) {
 }
 
 // cookItems simulates cooking each order item with a random cooking time between 1-10 seconds.
-// It prints the cooking progress to the terminal and sends update events to the store service.
-func (k *Kitchen) cookItems(orderID string, items []OrderItem) {
-	parsedOrderID, err := uuid.Parse(orderID)
-	if err != nil {
-		fmt.Printf("[Order %s] Invalid order ID: %v\n", orderID, err)
-		return
-	}
-
+// It logs the cooking progress and sends update events to the store service.
+func (k *Kitchen) cookItems(ctx context.Context, orderID uuid.UUID, items []OrderItem) {
 	for _, item := range items {
 		for i := 0; i < item.Quantity; i++ {
 			// Get cooking time
@@ -105,22 +105,28 @@ func (k *Kitchen) cookItems(orderID string, items []OrderItem) {
 
 			// Send update events every second while cooking
 			for elapsed := 0; elapsed < cookingTime; elapsed++ {
-				k.sendEvent(parsedOrderID, fmt.Sprintf("cooking %s (%d/%d)", item.PizzaType, i+1, item.Quantity))
+				select {
+				case <-ctx.Done():
+					slog.Warn("cooking cancelled", "orderId", orderID, "error", ctx.Err())
+					return
+				default:
+				}
+				k.sendEvent(ctx, orderID, fmt.Sprintf("cooking %s (%d/%d)", item.PizzaType, i+1, item.Quantity))
 				time.Sleep(1 * time.Second)
 			}
 
 			duration := time.Since(startTime)
-			fmt.Printf("[Order %s] Cooked %s (took %v)\n", orderID, item.PizzaType, duration.Round(time.Second))
+			slog.Info("item cooked", "orderId", orderID, "pizzaType", item.PizzaType, "duration", duration.Round(time.Second))
 		}
 	}
-	fmt.Printf("[Order %s] All items cooked!\n", orderID)
+	slog.Info("all items cooked", "orderId", orderID)
 
 	// Send DONE event
-	k.sendEvent(parsedOrderID, "DONE")
+	k.sendEvent(ctx, orderID, "DONE")
 }
 
 // sendEvent sends an event to the store service.
-func (k *Kitchen) sendEvent(orderID uuid.UUID, status string) {
+func (k *Kitchen) sendEvent(ctx context.Context, orderID uuid.UUID, status string) {
 	event := OrderEvent{
 		OrderID: orderID,
 		Status:  status,
@@ -129,11 +135,20 @@ func (k *Kitchen) sendEvent(orderID uuid.UUID, status string) {
 
 	body, err := json.Marshal(event)
 	if err != nil {
+		slog.Error("failed to marshal event", "orderId", orderID, "error", err)
 		return
 	}
 
-	resp, err := k.httpClient.Post(k.storeURL+"/events", "application/json", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, k.storeURL+"/events", bytes.NewReader(body))
 	if err != nil {
+		slog.Error("failed to create event request", "orderId", orderID, "error", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := k.httpClient.Do(req)
+	if err != nil {
+		slog.Error("failed to send event to store", "orderId", orderID, "status", status, "error", err)
 		return
 	}
 	defer resp.Body.Close()

@@ -575,3 +575,195 @@ func TestGetEventsEmptyForOrder(t *testing.T) {
 		t.Errorf("expected 0 events, got %d", len(returnedEvents))
 	}
 }
+
+// TestCookedEventCallsDeliveryService verifies that when a kitchen DONE event is received
+// (mapped to COOKED), the store calls the delivery service with orderId and orderItems.
+func TestCookedEventCallsDeliveryService(t *testing.T) {
+	// Create a mock delivery server that tracks received requests
+	type DeliverRequest struct {
+		OrderID    uuid.UUID   `json:"orderId"`
+		OrderItems []OrderItem `json:"orderItems"`
+	}
+
+	var receivedRequest DeliverRequest
+	deliveryCalled := make(chan bool, 1)
+	deliveryServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/deliver" {
+			json.NewDecoder(r.Body).Decode(&receivedRequest)
+			w.WriteHeader(http.StatusAccepted)
+			json.NewEncoder(w).Encode(map[string]string{"status": "delivering"})
+			deliveryCalled <- true
+		}
+	}))
+	defer deliveryServer.Close()
+
+	store := NewStore()
+	store.SetDeliveryURL(deliveryServer.URL)
+
+	router := chi.NewRouter()
+	router.Post("/order", store.HandleCreateOrder)
+	router.Post("/events", store.HandleEvent)
+
+	// Create an order
+	orderReq := CreateOrderRequest{
+		OrderItems: []OrderItem{
+			{PizzaType: "Margherita", Quantity: 2},
+			{PizzaType: "Pepperoni", Quantity: 1},
+		},
+		OrderData: "Test delivery",
+	}
+	orderBody, _ := json.Marshal(orderReq)
+	createReq := httptest.NewRequest(http.MethodPost, "/order", bytes.NewReader(orderBody))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRec := httptest.NewRecorder()
+	router.ServeHTTP(createRec, createReq)
+
+	var createdOrder Order
+	json.Unmarshal(createRec.Body.Bytes(), &createdOrder)
+
+	// Send DONE event from kitchen (triggers COOKED status and delivery call)
+	doneEvent := OrderEvent{
+		OrderID: createdOrder.OrderID,
+		Status:  "DONE",
+		Source:  "kitchen",
+	}
+	eventBody, _ := json.Marshal(doneEvent)
+	eventReq := httptest.NewRequest(http.MethodPost, "/events", bytes.NewReader(eventBody))
+	eventReq.Header.Set("Content-Type", "application/json")
+	eventRec := httptest.NewRecorder()
+	router.ServeHTTP(eventRec, eventReq)
+
+	if eventRec.Code != http.StatusOK {
+		t.Errorf("expected status 200 OK, got %d", eventRec.Code)
+	}
+
+	// Wait for the delivery service to be called
+	select {
+	case <-deliveryCalled:
+		// Delivery was called
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for delivery service to be called")
+	}
+
+	// Verify the delivery received the correct order data
+	if receivedRequest.OrderID != createdOrder.OrderID {
+		t.Errorf("expected delivery to receive orderId %s, got %s", createdOrder.OrderID, receivedRequest.OrderID)
+	}
+
+	if len(receivedRequest.OrderItems) != 2 {
+		t.Errorf("expected delivery to receive 2 order items, got %d", len(receivedRequest.OrderItems))
+	}
+
+	if receivedRequest.OrderItems[0].PizzaType != "Margherita" {
+		t.Errorf("expected delivery to receive Margherita pizza, got %s", receivedRequest.OrderItems[0].PizzaType)
+	}
+}
+
+// TestDeliveredEventUpdatesOrderStatus verifies that a DELIVERED event from delivery
+// updates the order status to DELIVERED.
+func TestDeliveredEventUpdatesOrderStatus(t *testing.T) {
+	store := NewStore()
+	router := chi.NewRouter()
+	router.Post("/order", store.HandleCreateOrder)
+	router.Post("/events", store.HandleEvent)
+
+	// Create an order
+	orderReq := CreateOrderRequest{
+		OrderItems: []OrderItem{
+			{PizzaType: "Margherita", Quantity: 1},
+		},
+		OrderData: "Test order",
+	}
+	orderBody, _ := json.Marshal(orderReq)
+	createReq := httptest.NewRequest(http.MethodPost, "/order", bytes.NewReader(orderBody))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRec := httptest.NewRecorder()
+	router.ServeHTTP(createRec, createReq)
+
+	var createdOrder Order
+	json.Unmarshal(createRec.Body.Bytes(), &createdOrder)
+
+	// Send DELIVERED event from delivery
+	deliveredEvent := OrderEvent{
+		OrderID: createdOrder.OrderID,
+		Status:  "DELIVERED",
+		Source:  "delivery",
+	}
+	eventBody, _ := json.Marshal(deliveredEvent)
+	req := httptest.NewRequest(http.MethodPost, "/events", bytes.NewReader(eventBody))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200 OK, got %d", rec.Code)
+	}
+
+	// Verify the order status is now DELIVERED
+	order, exists := store.GetOrder(createdOrder.OrderID)
+	if !exists {
+		t.Fatal("order not found")
+	}
+	if order.OrderStatus != "DELIVERED" {
+		t.Errorf("expected OrderStatus 'DELIVERED', got '%s'", order.OrderStatus)
+	}
+}
+
+// TestDeliveryEventsAreTracked verifies that delivery progress events are tracked per orderId.
+func TestDeliveryEventsAreTracked(t *testing.T) {
+	store := NewStore()
+	router := chi.NewRouter()
+	router.Post("/order", store.HandleCreateOrder)
+	router.Post("/events", store.HandleEvent)
+
+	// Create an order
+	orderReq := CreateOrderRequest{
+		OrderItems: []OrderItem{
+			{PizzaType: "Margherita", Quantity: 1},
+		},
+		OrderData: "Test order",
+	}
+	orderBody, _ := json.Marshal(orderReq)
+	createReq := httptest.NewRequest(http.MethodPost, "/order", bytes.NewReader(orderBody))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRec := httptest.NewRecorder()
+	router.ServeHTTP(createRec, createReq)
+
+	var createdOrder Order
+	json.Unmarshal(createRec.Body.Bytes(), &createdOrder)
+
+	// Send a series of delivery events
+	deliveryEvents := []OrderEvent{
+		{OrderID: createdOrder.OrderID, Status: "delivering 33%", Source: "delivery"},
+		{OrderID: createdOrder.OrderID, Status: "delivering 66%", Source: "delivery"},
+		{OrderID: createdOrder.OrderID, Status: "delivering 100%", Source: "delivery"},
+		{OrderID: createdOrder.OrderID, Status: "DELIVERED", Source: "delivery"},
+	}
+
+	for _, event := range deliveryEvents {
+		eventBody, _ := json.Marshal(event)
+		req := httptest.NewRequest(http.MethodPost, "/events", bytes.NewReader(eventBody))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+	}
+
+	// Verify all events are tracked
+	trackedEvents := store.GetOrderEvents(createdOrder.OrderID)
+	if len(trackedEvents) != 4 {
+		t.Errorf("expected 4 tracked delivery events, got %d", len(trackedEvents))
+	}
+
+	// Verify all events have correct source
+	for _, e := range trackedEvents {
+		if e.Source != "delivery" {
+			t.Errorf("expected event source 'delivery', got '%s'", e.Source)
+		}
+	}
+
+	// Verify final status is DELIVERED
+	order, _ := store.GetOrder(createdOrder.OrderID)
+	if order.OrderStatus != "DELIVERED" {
+		t.Errorf("expected final OrderStatus 'DELIVERED', got '%s'", order.OrderStatus)
+	}
+}

@@ -3,10 +3,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -37,10 +41,33 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 
-	// Start server
 	addr := fmt.Sprintf(":%s", port)
-	log.Printf("Kitchen service starting on %s", addr)
-	if err := http.ListenAndServe(addr, r); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: r,
 	}
+
+	// Graceful shutdown: listen for interrupt/terminate signals
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		slog.Info("kitchen service starting", "addr", addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("server error", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	<-ctx.Done()
+	slog.Info("shutting down kitchen service")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		slog.Error("shutdown error", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("kitchen service stopped")
 }

@@ -2,9 +2,12 @@ package store
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -21,30 +24,45 @@ type CookRequest struct {
 	OrderItems []OrderItem `json:"orderItems"`
 }
 
+// DeliverRequest represents the request sent to the delivery service.
+type DeliverRequest struct {
+	OrderID    uuid.UUID   `json:"orderId"`
+	OrderItems []OrderItem `json:"orderItems"`
+}
+
 // Store manages pizza orders and provides HTTP handlers for the store service.
 type Store struct {
-	mu         sync.RWMutex
-	orders     map[uuid.UUID]*Order
-	events     map[uuid.UUID][]OrderEvent
-	hub        *WebSocketHub
-	kitchenURL string
-	httpClient *http.Client
+	mu          sync.RWMutex
+	orders      map[uuid.UUID]*Order
+	events      map[uuid.UUID][]OrderEvent
+	hub         *WebSocketHub
+	kitchenURL  string
+	deliveryURL string
+	httpClient  *http.Client
 }
 
 // NewStore creates a new Store instance with initialized order storage and WebSocket hub.
 func NewStore() *Store {
 	return &Store{
-		orders:     make(map[uuid.UUID]*Order),
-		events:     make(map[uuid.UUID][]OrderEvent),
-		hub:        NewWebSocketHub(),
-		kitchenURL: "http://kitchen:8081",
-		httpClient: &http.Client{},
+		orders:      make(map[uuid.UUID]*Order),
+		events:      make(map[uuid.UUID][]OrderEvent),
+		hub:         NewWebSocketHub(),
+		kitchenURL:  "http://kitchen:8081",
+		deliveryURL: "http://delivery:8082",
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 
 // SetKitchenURL sets the URL of the kitchen service.
 func (s *Store) SetKitchenURL(url string) {
 	s.kitchenURL = url
+}
+
+// SetDeliveryURL sets the URL of the delivery service.
+func (s *Store) SetDeliveryURL(url string) {
+	s.deliveryURL = url
 }
 
 // HandleCreateOrder handles POST /order requests to create new pizza orders.
@@ -75,8 +93,10 @@ func (s *Store) HandleCreateOrder(w http.ResponseWriter, r *http.Request) {
 	s.orders[order.OrderID] = order
 	s.mu.Unlock()
 
-	// Call kitchen service to cook the order
-	go s.callKitchenService(order)
+	slog.Info("order created", "orderId", order.OrderID, "items", len(order.OrderItems))
+
+	// Call kitchen service to cook the order (background; detach from request context)
+	go s.callKitchenService(context.Background(), order)
 
 	// Return the created order
 	w.Header().Set("Content-Type", "application/json")
@@ -85,7 +105,7 @@ func (s *Store) HandleCreateOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 // callKitchenService sends a cook request to the kitchen service.
-func (s *Store) callKitchenService(order *Order) {
+func (s *Store) callKitchenService(ctx context.Context, order *Order) {
 	cookReq := CookRequest{
 		OrderID:    order.OrderID,
 		OrderItems: order.OrderItems,
@@ -93,14 +113,27 @@ func (s *Store) callKitchenService(order *Order) {
 
 	body, err := json.Marshal(cookReq)
 	if err != nil {
+		slog.Error("failed to marshal cook request", "orderId", order.OrderID, "error", err)
 		return
 	}
 
-	resp, err := s.httpClient.Post(s.kitchenURL+"/cook", "application/json", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.kitchenURL+"/cook", bytes.NewReader(body))
 	if err != nil {
+		slog.Error("failed to create kitchen request", "orderId", order.OrderID, "error", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		slog.Error("failed to call kitchen service", "orderId", order.OrderID, "error", err)
 		return
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusAccepted {
+		slog.Warn("kitchen service returned unexpected status", "orderId", order.OrderID, "status", resp.StatusCode)
+	}
 }
 
 // GetOrder retrieves an order by its UUID.
@@ -133,6 +166,8 @@ type OrderEvent struct {
 // HandleEvent handles POST /events requests to receive order updates
 // from kitchen and delivery services. It updates the order status and
 // broadcasts the update to all connected WebSocket clients.
+// When a kitchen DONE event is received (mapped to COOKED), it calls
+// the delivery service to deliver the order.
 func (s *Store) HandleEvent(w http.ResponseWriter, r *http.Request) {
 	var event OrderEvent
 	if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
@@ -155,6 +190,8 @@ func (s *Store) HandleEvent(w http.ResponseWriter, r *http.Request) {
 	// Track the event
 	s.trackEvent(event)
 
+	slog.Info("order event received", "orderId", event.OrderID, "status", status, "source", event.Source)
+
 	// Broadcast the update to WebSocket clients
 	s.BroadcastOrderUpdate(OrderUpdate{
 		OrderID: event.OrderID,
@@ -162,7 +199,47 @@ func (s *Store) HandleEvent(w http.ResponseWriter, r *http.Request) {
 		Source:  event.Source,
 	})
 
+	// If the order is cooked, call the delivery service
+	if status == "COOKED" {
+		order, exists := s.GetOrder(event.OrderID)
+		if exists {
+			go s.callDeliveryService(context.Background(), order)
+		}
+	}
+
 	w.WriteHeader(http.StatusOK)
+}
+
+// callDeliveryService sends a deliver request to the delivery service.
+func (s *Store) callDeliveryService(ctx context.Context, order *Order) {
+	deliverReq := DeliverRequest{
+		OrderID:    order.OrderID,
+		OrderItems: order.OrderItems,
+	}
+
+	body, err := json.Marshal(deliverReq)
+	if err != nil {
+		slog.Error("failed to marshal deliver request", "orderId", order.OrderID, "error", err)
+		return
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.deliveryURL+"/deliver", bytes.NewReader(body))
+	if err != nil {
+		slog.Error("failed to create delivery request", "orderId", order.OrderID, "error", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		slog.Error("failed to call delivery service", "orderId", order.OrderID, "error", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusAccepted {
+		slog.Warn("delivery service returned unexpected status", "orderId", order.OrderID, "status", resp.StatusCode)
+	}
 }
 
 // trackEvent stores an event in the order's event history.
