@@ -10,6 +10,7 @@ import Icon from '@/components/Icon';
 import QuantitySelector from '@/components/QuantitySelector';
 import CartItem from '@/components/CartItem';
 import EmptyBlock from '@/components/EmptyBlock';
+import PizzaItem from '@/components/PizzaItem';
 
 export default function ComponentsShowcase() {
   const [qty1, setQty1] = useState(2);
@@ -104,6 +105,37 @@ export default function ComponentsShowcase() {
         <h2>Empty Block</h2>
         <div style={{ marginTop: '16px', padding: '20px', border: '1px solid #ccc', borderRadius: '8px' }}>
           <EmptyBlock />
+        </div>
+      </section>
+
+      {/* Pizza Item */}
+      <section>
+        <h2>Pizza Item</h2>
+        <div style={{ marginTop: '16px', padding: '20px', border: '1px solid #ccc', borderRadius: '8px', display: 'flex', gap: '20px' }}>
+          <PizzaItem
+            name="Margherita"
+            price={10}
+            description="San Marzano tomatoes, mozzarella cheese, fresh basil, salt, and extra-virgin olive oil"
+            image="/images/pizza-margherita.svg"
+          />
+          <PizzaItem
+            name="Pepperoni"
+            price={15}
+            description="Mozzarella cheese, pepperoni slices, olive oil, salt, and pepper"
+            image="/images/pizza-pepperoni.svg"
+          />
+          <PizzaItem
+            name="Hawaiian"
+            price={15}
+            description="Tomato sauce, mozzarella cheese, cooked ham, pineapple"
+            image="/images/pizza-hawaiian.svg"
+          />
+          <PizzaItem
+            name="Vegan"
+            price={12}
+            description="Vegan cheese, tomato sauce, mushrooms, onions, green peppers, and black olives"
+            image="/images/pizza-vegan.svg"
+          />
         </div>
       </section>
 

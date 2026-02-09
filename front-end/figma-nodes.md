@@ -178,3 +178,26 @@
 - No variants
 - No new tokens
 
+### PizzaItem (page: `115:9`, component set: `115:124`)
+- Page URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=115-9
+- Component URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=115-124
+- Size: 300×394 fixed width
+- Layout: flex column, gap `--space-spacing-l`
+- **Illustration** (300×300 circle): 5 concentric rings built with CSS
+  - Outer ring: bg `--color-background-subtle`, border `--border-width-thick` `--color-border-default`, round, padding `--space-spacing-m`
+  - Middle ring: same as outer
+  - Plate ring: bg `--color-background-default`, same border, `box-shadow: 0 7px 0 rgba(0,0,0,0.5)`
+  - Sauce ring: bg `--color-background-secondary-default`
+  - Cheese/Inner: bg `--color-background-tertiary-default` — accepts topping image
+- **Add Button** (hover only): positioned top-right of illustration
+  - Outer container: bg `--color-background-default`, border `--border-width-thick` `--color-border-subtle`, round pill, padding `--space-spacing-m`
+  - Inner: uses existing Button component with "Add" text
+- **Info Container**: gap `--space-spacing-s`
+  - Header: flex row, H3 typography uppercase, name (flex-1 left) + price (flex-1 right), `--color-text-default`
+  - Description: Body Small typography, `--color-text-subtle`
+- Variants (2 states × 4 types):
+  - `State=Default`: no add button visible
+  - `State=Hover`: add button visible top-right
+  - Types: Margherita (`115:123`), Pepperoni (`115:237`), Hawaiian (`115:397`), Vegan (`115:603`)
+- New tokens discovered: `--color-background-tertiary-default` (#f2d96b)
+
