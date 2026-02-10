@@ -38,14 +38,19 @@
 
   /* Colors - Background */
   --color-background-default: #ecf2ef;
+  --color-background-subtle: #9faaa5;
   --color-background-primary-default: #08b869;
   --color-background-secondary-default: #b82508;
+  --color-background-tertiary-default: #f2d96b;
   --color-background-inverted-default: #0c0d0d;
 
   /* Colors - Border */
   --color-border-default: #0c0d0d;
   --color-border-subtle: #3b4943;
+  --color-border-primary-default: #045934;
   --color-border-primary-subtle: #068f52;
+  --color-border-secondary-default: #591304;
+  --color-border-secondary-subtle: #b82508;
   --color-border-disabled: #9faaa5;
 
   /* Border Widths */
