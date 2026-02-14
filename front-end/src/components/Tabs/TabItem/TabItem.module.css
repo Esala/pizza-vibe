@@ -27,3 +27,16 @@
   color: var(--color-text-inverted-default);
   border-color: transparent;
 }
+
+/* State: Disabled */
+.tabItem.disabled {
+  border-color: var(--color-border-disabled);
+  color: var(--color-text-disabled);
+  cursor: default;
+}
+
+.tabItem.disabled:hover {
+  background-color: transparent;
+  border-color: var(--color-border-disabled);
+  color: var(--color-text-disabled);
+}
