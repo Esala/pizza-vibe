@@ -30,20 +30,13 @@ function createMockWebSocket() {
   return { mockWs, MockWebSocket };
 }
 
-// Helper: add an item to the cart
-async function addItemToCart(
+// Helper: add a pizza to the cart by clicking on it
+async function addPizzaToCart(
   user: ReturnType<typeof userEvent.setup>,
-  pizzaType: string,
-  quantity: number
+  pizzaName: string
 ) {
-  const pizzaSelect = screen.getByLabelText(/pizza type/i);
-  const quantityInput = screen.getByLabelText(/quantity/i);
-  const addToCartButton = screen.getByRole('button', { name: /add to cart/i });
-
-  await user.selectOptions(pizzaSelect, pizzaType);
-  await user.tripleClick(quantityInput);
-  await user.keyboard(String(quantity));
-  await user.click(addToCartButton);
+  const matches = screen.getAllByText(pizzaName);
+  await user.click(matches[0]);
 }
 
 describe('Home Page', () => {
@@ -51,27 +44,26 @@ describe('Home Page', () => {
     jest.clearAllMocks();
   });
 
-  it('renders the page title', () => {
+  it('renders all pizza items', () => {
     render(<Home />);
-    expect(screen.getByRole('heading', { name: /pizza vibe/i })).toBeInTheDocument();
+    expect(screen.getByText('Margherita')).toBeInTheDocument();
+    expect(screen.getByText('Pepperoni')).toBeInTheDocument();
+    expect(screen.getByText('Hawaiian')).toBeInTheDocument();
+    expect(screen.getByText('Vegan')).toBeInTheDocument();
   });
 
-  it('displays an order form with pizza type selection', () => {
-    render(<Home />);
-    expect(screen.getByLabelText(/pizza type/i)).toBeInTheDocument();
-  });
-
-  it('displays an order form with quantity input', () => {
-    render(<Home />);
-    expect(screen.getByLabelText(/quantity/i)).toBeInTheDocument();
-  });
-
-  it('displays a submit button to place the order', () => {
+  it('displays a Place Order button', () => {
     render(<Home />);
     expect(screen.getByRole('button', { name: /place order/i })).toBeInTheDocument();
   });
 
-  it('submits the order to the store service when form is submitted', async () => {
+  it('displays the Place Order button as disabled when cart is empty', () => {
+    render(<Home />);
+    const placeOrderButton = screen.getByRole('button', { name: /place order/i });
+    expect(placeOrderButton).toBeDisabled();
+  });
+
+  it('submits the order to the store service when Place Order is clicked', async () => {
     const user = userEvent.setup();
     createMockWebSocket();
 
@@ -82,8 +74,9 @@ describe('Home Page', () => {
 
     render(<Home />);
 
-    // Add item to cart first
-    await addItemToCart(user, 'Margherita', 2);
+    // Add Margherita twice (quantity 2)
+    await addPizzaToCart(user, 'Margherita');
+    await addPizzaToCart(user, 'Margherita');
 
     const submitButton = screen.getByRole('button', { name: /place order/i });
     await user.click(submitButton);
@@ -112,17 +105,16 @@ describe('Home Page', () => {
 
     render(<Home />);
 
-    // Add item to cart first
-    await addItemToCart(user, 'Margherita', 2);
+    await addPizzaToCart(user, 'Margherita');
 
     const submitButton = screen.getByRole('button', { name: /place order/i });
     await user.click(submitButton);
 
+    // After success, page auto-switches to "Your Orders" tab
     await waitFor(() => {
       expect(screen.getByText(/order placed successfully/i)).toBeInTheDocument();
     });
 
-    // Verify order ID is displayed
     expect(screen.getByText(/test-order-id/i)).toBeInTheDocument();
   });
 
@@ -137,8 +129,7 @@ describe('Home Page', () => {
 
     render(<Home />);
 
-    // Add item to cart first
-    await addItemToCart(user, 'Margherita', 1);
+    await addPizzaToCart(user, 'Margherita');
 
     const submitButton = screen.getByRole('button', { name: /place order/i });
     await user.click(submitButton);
@@ -169,13 +160,12 @@ describe('Home Page', () => {
 
     render(<Home />);
 
-    // Add item to cart first
-    await addItemToCart(user, 'Margherita', 1);
+    await addPizzaToCart(user, 'Margherita');
 
     const submitButton = screen.getByRole('button', { name: /place order/i });
     await user.click(submitButton);
 
-    // Wait for order to be placed (WebSocket connected first, then order placed)
+    // Wait for order to be placed — auto-switches to "Your Orders" tab
     await waitFor(() => {
       expect(screen.getByText(/indicator-test-id/i)).toBeInTheDocument();
     });
@@ -195,8 +185,7 @@ describe('Home Page', () => {
 
     render(<Home />);
 
-    // Add item to cart first
-    await addItemToCart(user, 'Margherita', 1);
+    await addPizzaToCart(user, 'Margherita');
 
     const submitButton = screen.getByRole('button', { name: /place order/i });
     await user.click(submitButton);
@@ -256,6 +245,50 @@ describe('Home Page', () => {
     expect(rows.length).toBe(3); // 1 header + 2 data rows
   });
 
+  it('disables New Order tab after placing order and re-enables after delivery', async () => {
+    const user = userEvent.setup();
+    const { mockWs } = createMockWebSocket();
+
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ orderId: 'disable-tab-test-id', orderStatus: 'pending' }),
+    });
+
+    render(<Home />);
+
+    await addPizzaToCart(user, 'Margherita');
+
+    const submitButton = screen.getByRole('button', { name: /place order/i });
+    await user.click(submitButton);
+
+    // Wait for order to be placed — auto-switches to "Your Orders" tab
+    await waitFor(() => {
+      expect(screen.getByTestId('order-id')).toBeInTheDocument();
+    });
+
+    // "New Order" tab should be disabled
+    const newOrderTab = screen.getByRole('tab', { name: /new order/i });
+    expect(newOrderTab).toBeDisabled();
+
+    // Simulate DELIVERED event
+    await act(async () => {
+      if (mockWs.onmessage) {
+        mockWs.onmessage(new MessageEvent('message', {
+          data: JSON.stringify({
+            orderId: 'disable-tab-test-id',
+            status: 'DELIVERED',
+            source: 'delivery',
+            timestamp: '2026-01-26T10:10:00Z',
+          }),
+        }));
+      }
+    });
+
+    // "New Order" tab should be re-enabled
+    const newOrderTabAfter = screen.getByRole('tab', { name: /new order/i });
+    expect(newOrderTabAfter).not.toBeDisabled();
+  });
+
   it('displays error message when order fails', async () => {
     const user = userEvent.setup();
     createMockWebSocket();
@@ -267,8 +300,7 @@ describe('Home Page', () => {
 
     render(<Home />);
 
-    // Add item to cart first
-    await addItemToCart(user, 'Margherita', 1);
+    await addPizzaToCart(user, 'Margherita');
 
     const submitButton = screen.getByRole('button', { name: /place order/i });
     await user.click(submitButton);

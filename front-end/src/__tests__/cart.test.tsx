@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Home from '@/app/page';
 
@@ -29,115 +29,79 @@ function createMockWebSocket() {
   return { mockWs, MockWebSocket };
 }
 
+// Helper: add a pizza to the cart by clicking on the PizzaItem
+async function addPizzaToCart(
+  user: ReturnType<typeof userEvent.setup>,
+  pizzaName: string
+) {
+  const matches = screen.getAllByText(pizzaName);
+  await user.click(matches[0]);
+}
+
 describe('Cart Functionality', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('displays an Add to Cart button', () => {
+  it('shows empty cart message when no items are added', () => {
     render(<Home />);
-    expect(screen.getByRole('button', { name: /add to cart/i })).toBeInTheDocument();
+    expect(screen.getByText(/your cart is empty/i)).toBeInTheDocument();
   });
 
-  it('adds an item to the cart when Add to Cart is clicked', async () => {
+  it('adds an item to the cart when a pizza is clicked', async () => {
     const user = userEvent.setup();
     render(<Home />);
 
-    const pizzaSelect = screen.getByLabelText(/pizza type/i);
-    const quantityInput = screen.getByLabelText(/quantity/i);
-    const addToCartButton = screen.getByRole('button', { name: /add to cart/i });
+    await addPizzaToCart(user, 'Pepperoni');
 
-    await user.selectOptions(pizzaSelect, 'Pepperoni');
-    await user.tripleClick(quantityInput);
-    await user.keyboard('3');
-    await user.click(addToCartButton);
-
-    // Cart should show the added item
-    const cart = screen.getByTestId('cart');
-    expect(within(cart).getByText('Pepperoni')).toBeInTheDocument();
-    expect(within(cart).getByText('3')).toBeInTheDocument();
+    // Cart should show the pizza count summary
+    expect(screen.getByText(/1 pizzas in the cart/i)).toBeInTheDocument();
   });
 
   it('adds multiple different pizza types to the cart', async () => {
     const user = userEvent.setup();
     render(<Home />);
 
-    const pizzaSelect = screen.getByLabelText(/pizza type/i);
-    const quantityInput = screen.getByLabelText(/quantity/i);
-    const addToCartButton = screen.getByRole('button', { name: /add to cart/i });
+    await addPizzaToCart(user, 'Margherita');
+    await addPizzaToCart(user, 'Hawaiian');
 
-    // Add Margherita
-    await user.selectOptions(pizzaSelect, 'Margherita');
-    await user.tripleClick(quantityInput);
-    await user.keyboard('2');
-    await user.click(addToCartButton);
-
-    // Add Hawaiian
-    await user.selectOptions(pizzaSelect, 'Hawaiian');
-    await user.tripleClick(quantityInput);
-    await user.keyboard('1');
-    await user.click(addToCartButton);
-
-    const cart = screen.getByTestId('cart');
-    expect(within(cart).getByText('Margherita')).toBeInTheDocument();
-    expect(within(cart).getByText('Hawaiian')).toBeInTheDocument();
+    // Should show 2 pizzas in cart
+    expect(screen.getByText(/2 pizzas in the cart/i)).toBeInTheDocument();
   });
 
-  it('removes an item from the cart', async () => {
+  it('increments quantity when same pizza is clicked again', async () => {
     const user = userEvent.setup();
     render(<Home />);
 
-    const pizzaSelect = screen.getByLabelText(/pizza type/i);
-    const quantityInput = screen.getByLabelText(/quantity/i);
-    const addToCartButton = screen.getByRole('button', { name: /add to cart/i });
+    // Click Margherita 3 times
+    await addPizzaToCart(user, 'Margherita');
+    await addPizzaToCart(user, 'Margherita');
+    await addPizzaToCart(user, 'Margherita');
 
-    // Add Margherita
-    await user.selectOptions(pizzaSelect, 'Margherita');
-    await user.tripleClick(quantityInput);
-    await user.keyboard('2');
-    await user.click(addToCartButton);
+    // Should show 3 pizzas in cart
+    expect(screen.getByText(/3 pizzas in the cart/i)).toBeInTheDocument();
+    // Price should be 3 × $10 = $30
+    expect(screen.getByText('$30')).toBeInTheDocument();
+  });
 
+  it('removes an item from the cart via delete button', async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+
+    // Add Margherita (qty 1 → delete button visible)
+    await addPizzaToCart(user, 'Margherita');
     // Add Pepperoni
-    await user.selectOptions(pizzaSelect, 'Pepperoni');
-    await user.tripleClick(quantityInput);
-    await user.keyboard('1');
-    await user.click(addToCartButton);
+    await addPizzaToCart(user, 'Pepperoni');
 
-    // Remove Margherita
-    const cart = screen.getByTestId('cart');
-    const margheritaRow = within(cart).getByText('Margherita').closest('tr')!;
-    const removeButton = within(margheritaRow).getByRole('button', { name: /remove/i });
-    await user.click(removeButton);
+    expect(screen.getByText(/2 pizzas in the cart/i)).toBeInTheDocument();
 
-    // Margherita should be gone, Pepperoni should remain
-    expect(within(cart).queryByText('Margherita')).not.toBeInTheDocument();
-    expect(within(cart).getByText('Pepperoni')).toBeInTheDocument();
-  });
+    // At qty 1, the minus button shows as "Delete item"
+    const deleteButtons = screen.getAllByRole('button', { name: /delete item/i });
+    // Click first delete button (Margherita)
+    await user.click(deleteButtons[0]);
 
-  it('updates the quantity of a cart item when same pizza type is added again', async () => {
-    const user = userEvent.setup();
-    render(<Home />);
-
-    const pizzaSelect = screen.getByLabelText(/pizza type/i);
-    const quantityInput = screen.getByLabelText(/quantity/i);
-    const addToCartButton = screen.getByRole('button', { name: /add to cart/i });
-
-    // Add Margherita with quantity 2
-    await user.selectOptions(pizzaSelect, 'Margherita');
-    await user.tripleClick(quantityInput);
-    await user.keyboard('2');
-    await user.click(addToCartButton);
-
-    // Add Margherita again with quantity 3
-    await user.selectOptions(pizzaSelect, 'Margherita');
-    await user.tripleClick(quantityInput);
-    await user.keyboard('3');
-    await user.click(addToCartButton);
-
-    // Quantity should be updated to 5 (2 + 3)
-    const cart = screen.getByTestId('cart');
-    const margheritaRow = within(cart).getByText('Margherita').closest('tr')!;
-    expect(within(margheritaRow).getByText('5')).toBeInTheDocument();
+    // Should show 1 pizza in cart (Pepperoni remains)
+    expect(screen.getByText(/1 pizzas in the cart/i)).toBeInTheDocument();
   });
 
   it('places order with all cart items', async () => {
@@ -151,48 +115,42 @@ describe('Cart Functionality', () => {
 
     render(<Home />);
 
-    const pizzaSelect = screen.getByLabelText(/pizza type/i);
-    const quantityInput = screen.getByLabelText(/quantity/i);
-    const addToCartButton = screen.getByRole('button', { name: /add to cart/i });
-
     // Add Margherita x2
-    await user.selectOptions(pizzaSelect, 'Margherita');
-    await user.tripleClick(quantityInput);
-    await user.keyboard('2');
-    await user.click(addToCartButton);
+    await addPizzaToCart(user, 'Margherita');
+    await addPizzaToCart(user, 'Margherita');
 
     // Add Pepperoni x1
-    await user.selectOptions(pizzaSelect, 'Pepperoni');
-    await user.tripleClick(quantityInput);
-    await user.keyboard('1');
-    await user.click(addToCartButton);
+    await addPizzaToCart(user, 'Pepperoni');
 
     // Place order
     const placeOrderButton = screen.getByRole('button', { name: /place order/i });
     await user.click(placeOrderButton);
 
-    expect(global.fetch).toHaveBeenCalledWith('/api/order', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        orderItems: [
-          { pizzaType: 'Margherita', quantity: 2 },
-          { pizzaType: 'Pepperoni', quantity: 1 },
-        ],
-      }),
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('/api/order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderItems: [
+            { pizzaType: 'Margherita', quantity: 2 },
+            { pizzaType: 'Pepperoni', quantity: 1 },
+          ],
+        }),
+      });
     });
   });
 
-  it('does not show cart when no items are added', () => {
+  it('disables Place Order when cart is empty', () => {
     render(<Home />);
-    expect(screen.queryByTestId('cart')).not.toBeInTheDocument();
+    const placeOrderButton = screen.getByRole('button', { name: /place order/i });
+    expect(placeOrderButton).toBeDisabled();
   });
 
   it('clears the cart after placing order', async () => {
     const user = userEvent.setup();
-    createMockWebSocket();
+    const { mockWs } = createMockWebSocket();
 
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
@@ -201,31 +159,36 @@ describe('Cart Functionality', () => {
 
     render(<Home />);
 
-    const pizzaSelect = screen.getByLabelText(/pizza type/i);
-    const quantityInput = screen.getByLabelText(/quantity/i);
-    const addToCartButton = screen.getByRole('button', { name: /add to cart/i });
-
-    // Add item to cart
-    await user.selectOptions(pizzaSelect, 'Margherita');
-    await user.tripleClick(quantityInput);
-    await user.keyboard('1');
-    await user.click(addToCartButton);
+    await addPizzaToCart(user, 'Margherita');
 
     // Place order
     const placeOrderButton = screen.getByRole('button', { name: /place order/i });
     await user.click(placeOrderButton);
 
-    // Wait for order to be placed
-    const orderIdEl = await screen.findByTestId('order-id');
-    expect(orderIdEl).toBeInTheDocument();
+    // Wait for order to be placed — auto-switches to "Your Orders" tab
+    await waitFor(() => {
+      expect(screen.getByTestId('order-id')).toBeInTheDocument();
+    });
 
-    // Cart should be cleared
-    expect(screen.queryByTestId('cart')).not.toBeInTheDocument();
-  });
+    // "New Order" tab is disabled until DELIVERED — simulate delivery
+    await act(async () => {
+      if (mockWs.onmessage) {
+        mockWs.onmessage(new MessageEvent('message', {
+          data: JSON.stringify({
+            orderId: 'clear-cart-id',
+            status: 'DELIVERED',
+            source: 'delivery',
+            timestamp: '2026-01-26T10:10:00Z',
+          }),
+        }));
+      }
+    });
 
-  it('disables Place Order when cart is empty', () => {
-    render(<Home />);
-    const placeOrderButton = screen.getByRole('button', { name: /place order/i });
-    expect(placeOrderButton).toBeDisabled();
+    // Switch back to "New Order" tab to verify cart is cleared
+    const newOrderTab = screen.getByRole('tab', { name: /new order/i });
+    await user.click(newOrderTab);
+
+    // Cart should be empty
+    expect(screen.getByText(/your cart is empty/i)).toBeInTheDocument();
   });
 });

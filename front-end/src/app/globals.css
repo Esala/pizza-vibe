@@ -13,6 +13,7 @@ body {
   line-height: var(--type-body-default-line-height);
   background-color: var(--color-background-default);
   color: var(--color-text-default);
+  padding: 0 var(--space-margin);
 }
 
 /* Headings */
@@ -57,7 +58,3 @@ a {
   color: var(--color-text-primary-default);
 }
 
-/* Main content area */
-main {
-  padding: var(--space-spacing-l);
-}

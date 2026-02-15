@@ -80,6 +80,21 @@ The frontend has two distinct work modes. Always confirm which mode is active be
 - Use the created components to build pages and update layouts.
 - May modify `layout.tsx`, route pages, and other application files.
 - Avoid creating new components in this mode — if a component is missing, switch to Component Creation mode first.
+- This mode has two sub-modes. Always confirm which sub-mode is active before making changes:
+
+  **2a. Figma-Based Page Creation**
+  - Focus: Implementing pages that have an existing design in the Figma file.
+  - Before starting, fetch the page design from Figma via the MCP server (`get_design_context` on the page node).
+  - Document every page node in `front-end/figma-pages-nodes.md` (similar to `figma-nodes.md` for components) for reference and to track future design updates.
+  - Follow the Figma design exactly — layout, spacing, typography, and colors must match the design using tokens from `tokens.css`.
+  - On subsequent visits, check `figma-pages-nodes.md` and ask the user if new page nodes have been added or if existing designs have changed.
+
+  **2b. Vibe Coding Page Creation**
+  - Focus: Building pages from scratch based on user instructions, without a Figma reference.
+  - Use only the existing component library to compose the page.
+  - The user describes what the page needs and the developer builds it using best judgment for layout and composition.
+  - Still use design tokens from `tokens.css` for any styling — no hardcoded values.
+  - No Figma lookup is required, but the Figma strict style rules still apply (all values must come from `tokens.css`).
 
 ### Component Organization
 

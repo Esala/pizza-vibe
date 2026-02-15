@@ -7,6 +7,7 @@ import TabItem from './TabItem';
 interface Tab {
   label: string;
   value: string;
+  disabled?: boolean;
 }
 
 interface TabsProps {
@@ -19,9 +20,10 @@ interface TabsProps {
 export default function Tabs({ tabs, defaultValue, onTabChange, className }: TabsProps) {
   const [activeTab, setActiveTab] = useState(defaultValue ?? tabs[0]?.value);
 
-  const handleTabClick = (value: string) => {
-    setActiveTab(value);
-    onTabChange?.(value);
+  const handleTabClick = (tab: Tab) => {
+    if (tab.disabled) return;
+    setActiveTab(tab.value);
+    onTabChange?.(tab.value);
   };
 
   return (
@@ -35,7 +37,8 @@ export default function Tabs({ tabs, defaultValue, onTabChange, className }: Tab
             <TabItem
               key={tab.value}
               active={activeTab === tab.value}
-              onClick={() => handleTabClick(tab.value)}
+              disabled={tab.disabled}
+              onClick={() => handleTabClick(tab)}
             >
               {tab.label}
             </TabItem>

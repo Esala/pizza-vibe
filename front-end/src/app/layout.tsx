@@ -3,7 +3,8 @@ import { Geist } from "next/font/google";
 import { Knewave } from "next/font/google";
 import "./tokens.css";
 import "./globals.css";
-import Navigation from "@/components/Navigation";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 
 const geist = Geist({
   subsets: ["latin"],
@@ -29,8 +30,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geist.variable} ${knewave.variable}`}>
       <body>
-        <Navigation />
+        <Header />
         {children}
+        <Footer />
       </body>
     </html>
   );
