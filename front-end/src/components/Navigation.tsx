@@ -8,8 +8,6 @@ export default function Navigation() {
 
   const navItems = [
     { href: '/', label: 'Order' },
-    { href: '/kitchen', label: 'Kitchen' },
-    { href: '/delivery', label: 'Delivery' },
     { href: '/inventory', label: 'Inventory' },
     { href: '/oven', label: 'Ovens' },
     { href: '/bikes', label: 'Bikes' },

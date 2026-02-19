@@ -368,30 +368,30 @@ func TestBikeEmitsEventsWhileReserved(t *testing.T) {
 	eventsMu.Unlock()
 }
 
-// TestBikePostsProgressToDeliveryService tests that autoRelease sends progress events
-// to the delivery service via HTTP POST, following the oven→kitchen pattern.
-func TestBikePostsProgressToDeliveryService(t *testing.T) {
-	type BikeProgressEvent struct {
-		OrderID  string `json:"orderId"`
-		BikeID   string `json:"bikeId"`
-		Progress int    `json:"progress"`
-		Status   string `json:"status"`
+// TestBikePostsProgressToStoreService tests that autoRelease sends progress events
+// to the store service /events endpoint using the OrderEvent structure.
+func TestBikePostsProgressToStoreService(t *testing.T) {
+	type storeOrderEvent struct {
+		OrderID string `json:"orderId"`
+		Status  string `json:"status"`
+		Source  string `json:"source"`
+		Message string `json:"message,omitempty"`
 	}
 
-	progressReceived := make(chan BikeProgressEvent, 10)
-	deliveryServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/bike-progress" && r.Method == http.MethodPost {
-			var event BikeProgressEvent
+	progressReceived := make(chan storeOrderEvent, 10)
+	storeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/events" && r.Method == http.MethodPost {
+			var event storeOrderEvent
 			json.NewDecoder(r.Body).Decode(&event)
 			progressReceived <- event
 			w.WriteHeader(http.StatusOK)
 		}
 	}))
-	defer deliveryServer.Close()
+	defer storeServer.Close()
 
 	svc := NewBikeService()
 	svc.releaseDuration = func() time.Duration { return 100 * time.Millisecond }
-	svc.deliveryURL = deliveryServer.URL
+	svc.storeURL = storeServer.URL
 
 	r := chi.NewRouter()
 	r.Post("/bikes/{bikeId}", svc.HandleReserveBike)
@@ -411,7 +411,7 @@ func TestBikePostsProgressToDeliveryService(t *testing.T) {
 	}
 
 	// Collect progress events until autoRelease completes
-	var events []BikeProgressEvent
+	var events []storeOrderEvent
 	timeout := time.After(2 * time.Second)
 	for {
 		select {
@@ -425,20 +425,19 @@ func TestBikePostsProgressToDeliveryService(t *testing.T) {
 		}
 	}
 done:
-	// Verify 4 events with increasing progress
-	expectedProgress := []int{25, 50, 75, 100}
+	// Verify 4 events with correct structure
 	for i, event := range events {
-		if event.Progress != expectedProgress[i] {
-			t.Errorf("event %d: expected progress %d, got %d", i, expectedProgress[i], event.Progress)
-		}
-		if event.BikeID != "bike-1" {
-			t.Errorf("event %d: expected bikeId bike-1, got %s", i, event.BikeID)
-		}
 		if event.OrderID != "order-456" {
 			t.Errorf("event %d: expected orderId order-456, got %s", i, event.OrderID)
 		}
-		if event.Status != StatusReserved {
-			t.Errorf("event %d: expected status RESERVED, got %s", i, event.Status)
+		if event.Status != "ON_ROUTE" {
+			t.Errorf("event %d: expected status ON_ROUTE, got %s", i, event.Status)
+		}
+		if event.Source != "bikes" {
+			t.Errorf("event %d: expected source bikes, got %s", i, event.Source)
+		}
+		if event.Message == "" {
+			t.Errorf("event %d: expected non-empty message", i)
 		}
 	}
 }

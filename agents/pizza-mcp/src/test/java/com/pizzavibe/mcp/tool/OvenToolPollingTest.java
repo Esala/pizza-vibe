@@ -1,9 +1,8 @@
 package com.pizzavibe.mcp.tool;
 
-import com.pizzavibe.mcp.client.KitchenClient;
 import com.pizzavibe.mcp.client.OvenClient;
+import com.pizzavibe.mcp.client.StoreClient;
 import com.pizzavibe.mcp.model.Oven;
-import com.pizzavibe.mcp.model.OvenProgressEvent;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -43,11 +42,11 @@ class OvenToolPollingTest {
             }
         };
 
-        KitchenClient mockKitchenClient = event -> { /* no-op */ };
+        StoreClient mockStoreClient = event -> { /* no-op */ };
 
         OvenTool tool = new OvenTool();
         setField(tool, "ovenClient", mockOvenClient);
-        setField(tool, "kitchenClient", mockKitchenClient);
+        setField(tool, "storeClient", mockStoreClient);
 
         long start = System.currentTimeMillis();
         String result = tool.getOven("oven-1", "order-123");

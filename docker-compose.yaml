@@ -29,45 +29,12 @@ services:
       - "8080:8080"
     environment:
       - PORT=8080
+      - STORE_MGMT_AGENT_URL=http://docker.for.mac.host.internal:9090
     networks:
       - pizza-network
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
       interval: 5s
-      timeout: 10s
-      retries: 3
-
-  kitchen:
-    build:
-      context: .
-      dockerfile: kitchen/Dockerfile
-    ports:
-      - "8081:8081"
-    environment:
-      - PORT=8081
-      - COOKING_AGENT_URL=http://cooking-agent:8087
-    networks:
-      - pizza-network
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  delivery:
-    build:
-      context: .
-      dockerfile: delivery/Dockerfile
-    ports:
-      - "8082:8082"
-    environment:
-      - PORT=8082
-      - DELIVERY_AGENT_URL=http://delivery-agent:8089
-    networks:
-      - pizza-network
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8082/health"]
-      interval: 30s
       timeout: 10s
       retries: 3
 
@@ -128,7 +95,7 @@ services:
     environment:
       - INVENTORY_SERVICE_URL=http://inventory:8084
       - OVEN_SERVICE_URL=http://oven:8085
-      - KITCHEN_SERVICE_URL=http://kitchen:8081
+      - STORE_SERVICE_URL=http://store:8080
     networks:
       - pizza-network
     healthcheck:
@@ -171,6 +138,23 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+# This doesn't work because it requires Dapr to be running
+#  store-mgmt-agent:
+#    build:
+#      context: ./agents/store-mgmt-agent
+#      dockerfile: src/main/docker/Dockerfile.jvm
+#    ports:
+#      - "9090:9090"
+#    environment:
+#      - OPENAI_API_KEY=${OPENAI_API_KEY}
+#    networks:
+#      - pizza-network
+#    healthcheck:
+#      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/q/health"]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3
 
 networks:
   pizza-network:

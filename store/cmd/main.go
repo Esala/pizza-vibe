@@ -26,6 +26,9 @@ func main() {
 	}
 
 	s := store.NewStore()
+	if agentURL := os.Getenv("STORE_MGMT_AGENT_URL"); agentURL != "" {
+		s.SetAgentURL(agentURL)
+	}
 	r := chi.NewRouter()
 
 	// Middleware

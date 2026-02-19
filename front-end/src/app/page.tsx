@@ -50,9 +50,6 @@ export default function Home() {
     setEvents([]);
 
     try {
-      // Connect WebSocket before placing the order so no events are missed
-      await connectWebSocket();
-
       const response = await fetch('/api/order', {
         method: 'POST',
         headers: {
@@ -66,6 +63,9 @@ export default function Home() {
       if (response.ok) {
         const data = await response.json();
         setOrderId(data.orderId);
+        // Connect WebSocket keyed to this specific orderId so only events for
+        // this order are delivered to this frontend instance.
+        await connectWebSocket(data.orderId);
         setMessage('Order placed successfully!');
         setIsError(false);
         setCart([]);

@@ -1,9 +1,9 @@
 package com.pizzavibe.mcp.tool;
 
-import com.pizzavibe.mcp.client.KitchenClient;
 import com.pizzavibe.mcp.client.OvenClient;
+import com.pizzavibe.mcp.client.StoreClient;
 import com.pizzavibe.mcp.model.Oven;
-import com.pizzavibe.mcp.model.OvenProgressEvent;
+import com.pizzavibe.mcp.model.StoreOrderEvent;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -25,7 +25,7 @@ public class OvenTool {
 
     @Inject
     @RestClient
-    KitchenClient kitchenClient;
+    StoreClient storeClient;
 
     @Tool(description = "Get all pizza ovens with their current status (AVAILABLE or RESERVED)")
     public String getOvens() {
@@ -68,10 +68,11 @@ public class OvenTool {
     private void sendProgressToKitchen(String orderId, String ovenId, int progress, String status) {
         try {
             String cleanOrderId = orderId != null ? orderId.trim() : "";
-            OvenProgressEvent event = new OvenProgressEvent(cleanOrderId, ovenId, progress, status);
-            kitchenClient.sendProgress(event);
+            String message = "Oven " + ovenId + " progress: " + progress + "%";
+            StoreOrderEvent event = new StoreOrderEvent(cleanOrderId, status, "kitchen", message, null, null);
+            storeClient.sendEvent(event);
         } catch (Exception e) {
-            LOG.warn("Failed to send progress to kitchen (orderId=" + orderId + "): " + e.getMessage());
+            LOG.warn("Failed to send progress to store (orderId=" + orderId + "): " + e.getMessage());
         }
     }
 }

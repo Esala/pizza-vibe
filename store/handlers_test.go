@@ -130,7 +130,7 @@ func TestPostEvents(t *testing.T) {
 
 	// Now send an event to update the order status
 	eventReq := OrderEvent{
-		OrderID: createdOrder.OrderID,
+		OrderID: createdOrder.OrderID.String(),
 		Status:  "cooking",
 		Source:  "kitchen",
 	}
@@ -155,14 +155,15 @@ func TestPostEvents(t *testing.T) {
 	}
 }
 
-// TestPostEventsInvalidOrderID verifies that POST /events returns 404 for non-existent order.
-func TestPostEventsInvalidOrderID(t *testing.T) {
+// TestPostEventsUnknownOrderID verifies that POST /events returns 200 even for a non-existent
+// order, because progress events must always be broadcast to the UI regardless of order lookup.
+func TestPostEventsUnknownOrderID(t *testing.T) {
 	store := NewStore()
 	router := chi.NewRouter()
 	router.Post("/events", store.HandleEvent)
 
 	eventReq := OrderEvent{
-		OrderID: uuid.New(), // Non-existent order
+		OrderID: uuid.New().String(), // Valid UUID but no matching order
 		Status:  "cooking",
 		Source:  "kitchen",
 	}
@@ -173,8 +174,8 @@ func TestPostEventsInvalidOrderID(t *testing.T) {
 
 	router.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNotFound {
-		t.Errorf("expected status 404 Not Found, got %d", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200 OK, got %d", rec.Code)
 	}
 }
 
@@ -195,21 +196,22 @@ func TestPostEventsInvalidJSON(t *testing.T) {
 	}
 }
 
-// TestPostOrderCallsKitchenService verifies that POST /order calls the kitchen service to cook the order.
-func TestPostOrderCallsKitchenService(t *testing.T) {
-	// Create a mock kitchen server
-	var receivedRequest CookRequest
-	kitchenCalled := make(chan bool, 1)
-	kitchenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&receivedRequest)
-		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(map[string]string{"status": "cooking"})
-		kitchenCalled <- true
+// TestPostOrderCallsStoreMgmtAgent verifies that POST /order calls the store management agent
+// with a ProcessOrderRequest containing the orderId and orderItems.
+func TestPostOrderCallsStoreMgmtAgent(t *testing.T) {
+	var receivedRequest ProcessOrderRequest
+	agentCalled := make(chan bool, 1)
+	agentServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/mgmt/processOrder" && r.Method == http.MethodPost {
+			json.NewDecoder(r.Body).Decode(&receivedRequest)
+			w.WriteHeader(http.StatusOK)
+			agentCalled <- true
+		}
 	}))
-	defer kitchenServer.Close()
+	defer agentServer.Close()
 
 	store := NewStore()
-	store.SetKitchenURL(kitchenServer.URL)
+	store.SetAgentURL(agentServer.URL)
 
 	router := chi.NewRouter()
 	router.Post("/order", store.HandleCreateOrder)
@@ -232,28 +234,28 @@ func TestPostOrderCallsKitchenService(t *testing.T) {
 		t.Errorf("expected status 201 Created, got %d", rec.Code)
 	}
 
-	// Wait for the kitchen to be called (with timeout)
+	// Wait for the agent to be called (with timeout)
 	select {
-	case <-kitchenCalled:
-		// Kitchen was called
+	case <-agentCalled:
+		// Agent was called
 	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for kitchen service to be called")
+		t.Fatal("timed out waiting for store management agent to be called")
 	}
 
-	// Verify the kitchen received the correct order data
+	// Verify the agent received the correct order data
 	var response Order
 	json.Unmarshal(rec.Body.Bytes(), &response)
 
 	if receivedRequest.OrderID != response.OrderID {
-		t.Errorf("expected kitchen to receive orderId %s, got %s", response.OrderID, receivedRequest.OrderID)
+		t.Errorf("expected agent to receive orderId %s, got %s", response.OrderID, receivedRequest.OrderID)
 	}
 
 	if len(receivedRequest.OrderItems) != 1 {
-		t.Errorf("expected kitchen to receive 1 order item, got %d", len(receivedRequest.OrderItems))
+		t.Errorf("expected agent to receive 1 order item, got %d", len(receivedRequest.OrderItems))
 	}
 
 	if receivedRequest.OrderItems[0].PizzaType != "Margherita" {
-		t.Errorf("expected kitchen to receive Margherita pizza, got %s", receivedRequest.OrderItems[0].PizzaType)
+		t.Errorf("expected agent to receive Margherita pizza, got %s", receivedRequest.OrderItems[0].PizzaType)
 	}
 }
 
@@ -282,9 +284,9 @@ func TestEventsAreTrackedPerOrderID(t *testing.T) {
 
 	// Send multiple events
 	events := []OrderEvent{
-		{OrderID: createdOrder.OrderID, Status: "cooking", Source: "kitchen"},
-		{OrderID: createdOrder.OrderID, Status: "preparing pizza", Source: "kitchen"},
-		{OrderID: createdOrder.OrderID, Status: "in oven", Source: "kitchen"},
+		{OrderID: createdOrder.OrderID.String(), Status: "cooking", Source: "kitchen"},
+		{OrderID: createdOrder.OrderID.String(), Status: "preparing pizza", Source: "kitchen"},
+		{OrderID: createdOrder.OrderID.String(), Status: "in oven", Source: "kitchen"},
 	}
 
 	for _, event := range events {
@@ -313,8 +315,8 @@ func TestEventsAreTrackedPerOrderID(t *testing.T) {
 	}
 }
 
-// TestDoneEventUpdatesStatusToCooked verifies that a DONE event updates order status to COOKED.
-func TestDoneEventUpdatesStatusToCooked(t *testing.T) {
+// TestDoneEventUpdatesStatusToDone verifies that a DONE event updates the order status to DONE.
+func TestDoneEventUpdatesStatusToDone(t *testing.T) {
 	store := NewStore()
 	router := chi.NewRouter()
 	router.Post("/order", store.HandleCreateOrder)
@@ -338,7 +340,7 @@ func TestDoneEventUpdatesStatusToCooked(t *testing.T) {
 
 	// Send DONE event
 	doneEvent := OrderEvent{
-		OrderID: createdOrder.OrderID,
+		OrderID: createdOrder.OrderID.String(),
 		Status:  "DONE",
 		Source:  "kitchen",
 	}
@@ -352,13 +354,13 @@ func TestDoneEventUpdatesStatusToCooked(t *testing.T) {
 		t.Errorf("expected status 200 OK, got %d", rec.Code)
 	}
 
-	// Verify the order status is now COOKED
+	// Verify the order status is now DONE
 	order, exists := store.GetOrder(createdOrder.OrderID)
 	if !exists {
 		t.Fatal("order not found")
 	}
-	if order.OrderStatus != "COOKED" {
-		t.Errorf("expected OrderStatus 'COOKED', got '%s'", order.OrderStatus)
+	if order.OrderStatus != "DONE" {
+		t.Errorf("expected OrderStatus 'DONE', got '%s'", order.OrderStatus)
 	}
 }
 
@@ -466,9 +468,9 @@ func TestGetEventsForOrder(t *testing.T) {
 
 	// Send multiple events
 	events := []OrderEvent{
-		{OrderID: createdOrder.OrderID, Status: "cooking", Source: "kitchen"},
-		{OrderID: createdOrder.OrderID, Status: "in oven", Source: "kitchen"},
-		{OrderID: createdOrder.OrderID, Status: "DONE", Source: "kitchen"},
+		{OrderID: createdOrder.OrderID.String(), Status: "cooking", Source: "kitchen"},
+		{OrderID: createdOrder.OrderID.String(), Status: "in oven", Source: "kitchen"},
+		{OrderID: createdOrder.OrderID.String(), Status: "DONE", Source: "kitchen"},
 	}
 
 	for _, event := range events {
@@ -576,30 +578,10 @@ func TestGetEventsEmptyForOrder(t *testing.T) {
 	}
 }
 
-// TestCookedEventCallsDeliveryService verifies that when a kitchen DONE event is received
-// (mapped to COOKED), the store calls the delivery service with orderId and orderItems.
-func TestCookedEventCallsDeliveryService(t *testing.T) {
-	// Create a mock delivery server that tracks received requests
-	type DeliverRequest struct {
-		OrderID    uuid.UUID   `json:"orderId"`
-		OrderItems []OrderItem `json:"orderItems"`
-	}
-
-	var receivedRequest DeliverRequest
-	deliveryCalled := make(chan bool, 1)
-	deliveryServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/deliver" {
-			json.NewDecoder(r.Body).Decode(&receivedRequest)
-			w.WriteHeader(http.StatusAccepted)
-			json.NewEncoder(w).Encode(map[string]string{"status": "delivering"})
-			deliveryCalled <- true
-		}
-	}))
-	defer deliveryServer.Close()
-
+// TestEventOnlyUpdatesOrderStatus verifies that events only update the order status
+// without triggering any downstream service calls.
+func TestEventOnlyUpdatesOrderStatus(t *testing.T) {
 	store := NewStore()
-	store.SetDeliveryURL(deliveryServer.URL)
-
 	router := chi.NewRouter()
 	router.Post("/order", store.HandleCreateOrder)
 	router.Post("/events", store.HandleEvent)
@@ -610,7 +592,7 @@ func TestCookedEventCallsDeliveryService(t *testing.T) {
 			{PizzaType: "Margherita", Quantity: 2},
 			{PizzaType: "Pepperoni", Quantity: 1},
 		},
-		OrderData: "Test delivery",
+		OrderData: "Test order",
 	}
 	orderBody, _ := json.Marshal(orderReq)
 	createReq := httptest.NewRequest(http.MethodPost, "/order", bytes.NewReader(orderBody))
@@ -621,41 +603,30 @@ func TestCookedEventCallsDeliveryService(t *testing.T) {
 	var createdOrder Order
 	json.Unmarshal(createRec.Body.Bytes(), &createdOrder)
 
-	// Send DONE event from kitchen (triggers COOKED status and delivery call)
-	doneEvent := OrderEvent{
-		OrderID: createdOrder.OrderID,
-		Status:  "DONE",
-		Source:  "kitchen",
-	}
-	eventBody, _ := json.Marshal(doneEvent)
-	eventReq := httptest.NewRequest(http.MethodPost, "/events", bytes.NewReader(eventBody))
-	eventReq.Header.Set("Content-Type", "application/json")
-	eventRec := httptest.NewRecorder()
-	router.ServeHTTP(eventRec, eventReq)
+	statuses := []string{"COOKING", "DONE", "ON_ROUTE", "DELIVERED"}
+	for _, status := range statuses {
+		event := OrderEvent{
+			OrderID: createdOrder.OrderID.String(),
+			Status:  status,
+			Source:  "agent",
+		}
+		eventBody, _ := json.Marshal(event)
+		req := httptest.NewRequest(http.MethodPost, "/events", bytes.NewReader(eventBody))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
 
-	if eventRec.Code != http.StatusOK {
-		t.Errorf("expected status 200 OK, got %d", eventRec.Code)
-	}
+		if rec.Code != http.StatusOK {
+			t.Errorf("status %s: expected 200 OK, got %d", status, rec.Code)
+		}
 
-	// Wait for the delivery service to be called
-	select {
-	case <-deliveryCalled:
-		// Delivery was called
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for delivery service to be called")
-	}
-
-	// Verify the delivery received the correct order data
-	if receivedRequest.OrderID != createdOrder.OrderID {
-		t.Errorf("expected delivery to receive orderId %s, got %s", createdOrder.OrderID, receivedRequest.OrderID)
-	}
-
-	if len(receivedRequest.OrderItems) != 2 {
-		t.Errorf("expected delivery to receive 2 order items, got %d", len(receivedRequest.OrderItems))
-	}
-
-	if receivedRequest.OrderItems[0].PizzaType != "Margherita" {
-		t.Errorf("expected delivery to receive Margherita pizza, got %s", receivedRequest.OrderItems[0].PizzaType)
+		order, exists := store.GetOrder(createdOrder.OrderID)
+		if !exists {
+			t.Fatalf("order not found after %s event", status)
+		}
+		if order.OrderStatus != status {
+			t.Errorf("expected OrderStatus '%s', got '%s'", status, order.OrderStatus)
+		}
 	}
 }
 
@@ -685,7 +656,7 @@ func TestDeliveredEventUpdatesOrderStatus(t *testing.T) {
 
 	// Send DELIVERED event from delivery
 	deliveredEvent := OrderEvent{
-		OrderID: createdOrder.OrderID,
+		OrderID: createdOrder.OrderID.String(),
 		Status:  "DELIVERED",
 		Source:  "delivery",
 	}
@@ -732,7 +703,7 @@ func TestEventPassesThroughCookingUpdateData(t *testing.T) {
 
 	// Send an event with rich cooking data
 	event := OrderEvent{
-		OrderID:   createdOrder.OrderID,
+		OrderID:   createdOrder.OrderID.String(),
 		Status:    "checking_inventory",
 		Source:    "kitchen",
 		Message:   "Checking available ingredients in inventory",
@@ -787,10 +758,10 @@ func TestDeliveryEventsAreTracked(t *testing.T) {
 
 	// Send a series of delivery events
 	deliveryEvents := []OrderEvent{
-		{OrderID: createdOrder.OrderID, Status: "delivering 33%", Source: "delivery"},
-		{OrderID: createdOrder.OrderID, Status: "delivering 66%", Source: "delivery"},
-		{OrderID: createdOrder.OrderID, Status: "delivering 100%", Source: "delivery"},
-		{OrderID: createdOrder.OrderID, Status: "DELIVERED", Source: "delivery"},
+		{OrderID: createdOrder.OrderID.String(), Status: "delivering 33%", Source: "delivery"},
+		{OrderID: createdOrder.OrderID.String(), Status: "delivering 66%", Source: "delivery"},
+		{OrderID: createdOrder.OrderID.String(), Status: "delivering 100%", Source: "delivery"},
+		{OrderID: createdOrder.OrderID.String(), Status: "DELIVERED", Source: "delivery"},
 	}
 
 	for _, event := range deliveryEvents {

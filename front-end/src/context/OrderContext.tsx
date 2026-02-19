@@ -12,17 +12,13 @@ export interface WebSocketEvent {
   toolInput?: string;
 }
 
-function generateClientId(): string {
-  return 'client-' + Math.random().toString(36).substring(2, 15);
-}
-
 interface OrderContextValue {
   orderId: string | null;
   setOrderId: (id: string | null) => void;
   events: WebSocketEvent[];
   setEvents: React.Dispatch<React.SetStateAction<WebSocketEvent[]>>;
   wsConnected: boolean;
-  connectWebSocket: () => Promise<void>;
+  connectWebSocket: (orderId: string) => Promise<void>;
 }
 
 const OrderContext = createContext<OrderContextValue | null>(null);
@@ -38,7 +34,6 @@ export function OrderProvider({ children }: { children: ReactNode }) {
   const [events, setEvents] = useState<WebSocketEvent[]>([]);
   const [wsConnected, setWsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
-  const clientIdRef = useRef<string>(generateClientId());
 
   const setOrderId = useCallback((id: string | null) => {
     setOrderIdState(id);
@@ -58,7 +53,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
           if (parsed.events) {
             setEvents(parsed.events);
           }
-          connectWebSocket().catch(() => {});
+          connectWebSocket(parsed.orderId).catch(() => {});
         }
       } catch {
         // ignore invalid data
@@ -74,10 +69,10 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     }
   }, [orderId, events]);
 
-  const connectWebSocket = useCallback((): Promise<void> => {
+  const connectWebSocket = useCallback((orderId: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       const storeWsUrl = process.env.NEXT_PUBLIC_STORE_WS_URL || 'ws://localhost:8080';
-      const wsUrl = `${storeWsUrl}/ws?clientId=${clientIdRef.current}`;
+      const wsUrl = `${storeWsUrl}/ws?orderId=${orderId}`;
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {

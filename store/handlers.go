@@ -18,51 +18,38 @@ type CreateOrderRequest struct {
 	OrderData  string      `json:"orderData"`
 }
 
-// CookRequest represents the request sent to the kitchen service.
-type CookRequest struct {
-	OrderID    uuid.UUID   `json:"orderId"`
-	OrderItems []OrderItem `json:"orderItems"`
-}
-
-// DeliverRequest represents the request sent to the delivery service.
-type DeliverRequest struct {
+// ProcessOrderRequest represents the request sent to the store management agent.
+type ProcessOrderRequest struct {
 	OrderID    uuid.UUID   `json:"orderId"`
 	OrderItems []OrderItem `json:"orderItems"`
 }
 
 // Store manages pizza orders and provides HTTP handlers for the store service.
 type Store struct {
-	mu          sync.RWMutex
-	orders      map[uuid.UUID]*Order
-	events      map[uuid.UUID][]OrderEvent
-	hub         *WebSocketHub
-	kitchenURL  string
-	deliveryURL string
-	httpClient  *http.Client
+	mu         sync.RWMutex
+	orders     map[uuid.UUID]*Order
+	events     map[uuid.UUID][]OrderEvent
+	hub        *WebSocketHub
+	agentURL   string
+	httpClient *http.Client
 }
 
 // NewStore creates a new Store instance with initialized order storage and WebSocket hub.
 func NewStore() *Store {
 	return &Store{
-		orders:      make(map[uuid.UUID]*Order),
-		events:      make(map[uuid.UUID][]OrderEvent),
-		hub:         NewWebSocketHub(),
-		kitchenURL:  "http://kitchen:8081",
-		deliveryURL: "http://delivery:8082",
+		orders:   make(map[uuid.UUID]*Order),
+		events:   make(map[uuid.UUID][]OrderEvent),
+		hub:      NewWebSocketHub(),
+		agentURL: "http://store-mgmt-agent:9090",
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 	}
 }
 
-// SetKitchenURL sets the URL of the kitchen service.
-func (s *Store) SetKitchenURL(url string) {
-	s.kitchenURL = url
-}
-
-// SetDeliveryURL sets the URL of the delivery service.
-func (s *Store) SetDeliveryURL(url string) {
-	s.deliveryURL = url
+// SetAgentURL sets the URL of the store management agent.
+func (s *Store) SetAgentURL(url string) {
+	s.agentURL = url
 }
 
 // HandleCreateOrder handles POST /order requests to create new pizza orders.
@@ -95,8 +82,8 @@ func (s *Store) HandleCreateOrder(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("order created", "orderId", order.OrderID, "items", len(order.OrderItems))
 
-	// Call kitchen service to cook the order (background; detach from request context)
-	go s.callKitchenService(context.Background(), order)
+	// Send order to the store management agent (background; detach from request context)
+	go s.callStoreMgmtAgent(context.Background(), order)
 
 	// Return the created order
 	w.Header().Set("Content-Type", "application/json")
@@ -104,35 +91,35 @@ func (s *Store) HandleCreateOrder(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(order)
 }
 
-// callKitchenService sends a cook request to the kitchen service.
-func (s *Store) callKitchenService(ctx context.Context, order *Order) {
-	cookReq := CookRequest{
+// callStoreMgmtAgent sends a process order request to the store management agent.
+func (s *Store) callStoreMgmtAgent(ctx context.Context, order *Order) {
+	processReq := ProcessOrderRequest{
 		OrderID:    order.OrderID,
 		OrderItems: order.OrderItems,
 	}
 
-	body, err := json.Marshal(cookReq)
+	body, err := json.Marshal(processReq)
 	if err != nil {
-		slog.Error("failed to marshal cook request", "orderId", order.OrderID, "error", err)
+		slog.Error("failed to marshal process order request", "orderId", order.OrderID, "error", err)
 		return
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.kitchenURL+"/cook", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.agentURL+"/mgmt/processOrder", bytes.NewReader(body))
 	if err != nil {
-		slog.Error("failed to create kitchen request", "orderId", order.OrderID, "error", err)
+		slog.Error("failed to create agent request", "orderId", order.OrderID, "error", err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		slog.Error("failed to call kitchen service", "orderId", order.OrderID, "error", err)
+		slog.Error("failed to call store management agent", "orderId", order.OrderID, "error", err)
 		return
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusAccepted {
-		slog.Warn("kitchen service returned unexpected status", "orderId", order.OrderID, "status", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		slog.Warn("store management agent returned unexpected status", "orderId", order.OrderID, "status", resp.StatusCode)
 	}
 }
 
@@ -156,21 +143,19 @@ func (s *Store) UpdateOrderStatus(orderID uuid.UUID, status string) bool {
 	return true
 }
 
-// OrderEvent represents an event received from kitchen or delivery services.
+// OrderEvent represents an event received from kitchen, delivery, or agent services.
 type OrderEvent struct {
-	OrderID   uuid.UUID `json:"orderId"`
-	Status    string    `json:"status"`
-	Source    string    `json:"source"` // "kitchen" or "delivery"
-	Message   string    `json:"message,omitempty"`
-	ToolName  string    `json:"toolName,omitempty"`
-	ToolInput string    `json:"toolInput,omitempty"`
+	OrderID   string `json:"orderId"`
+	Status    string `json:"status"`
+	Source    string `json:"source"`
+	Message   string `json:"message,omitempty"`
+	ToolName  string `json:"toolName,omitempty"`
+	ToolInput string `json:"toolInput,omitempty"`
 }
 
-// HandleEvent handles POST /events requests to receive order updates
-// from kitchen and delivery services. It updates the order status and
-// broadcasts the update to all connected WebSocket clients.
-// When a kitchen DONE event is received (mapped to COOKED), it calls
-// the delivery service to deliver the order.
+// HandleEvent handles POST /events requests to receive order status updates.
+// It broadcasts the update to all connected WebSocket clients and, when the
+// orderId is a valid UUID for a known order, updates the order status.
 func (s *Store) HandleEvent(w http.ResponseWriter, r *http.Request) {
 	var event OrderEvent
 	if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
@@ -178,81 +163,38 @@ func (s *Store) HandleEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Map DONE status from kitchen to COOKED
-	status := event.Status
-	if event.Source == "kitchen" && event.Status == "DONE" {
-		status = "COOKED"
+	// Try to update order status if orderId is a valid UUID for a known order.
+	// A failed lookup is not fatal — progress events must still reach the UI.
+	orderID, parseErr := uuid.Parse(event.OrderID)
+	if parseErr == nil {
+		if !s.UpdateOrderStatus(orderID, event.Status) {
+			slog.Warn("order not found for event", "orderId", event.OrderID, "status", event.Status, "source", event.Source)
+		}
+		s.trackEvent(orderID, event)
+	} else {
+		slog.Warn("event has non-UUID orderId, broadcasting without order update", "orderId", event.OrderID, "source", event.Source)
 	}
 
-	// Update the order status
-	if !s.UpdateOrderStatus(event.OrderID, status) {
-		http.Error(w, "Order not found", http.StatusNotFound)
-		return
-	}
+	slog.Info("order event received", "orderId", event.OrderID, "status", event.Status, "source", event.Source)
 
-	// Track the event
-	s.trackEvent(event)
-
-	slog.Info("order event received", "orderId", event.OrderID, "status", status, "source", event.Source)
-
-	// Broadcast the update to WebSocket clients
+	// Always broadcast to WebSocket clients so the UI receives every progress event.
 	s.BroadcastOrderUpdate(OrderUpdate{
 		OrderID:   event.OrderID,
-		Status:    status,
+		Status:    event.Status,
 		Source:    event.Source,
 		Message:   event.Message,
 		ToolName:  event.ToolName,
 		ToolInput: event.ToolInput,
 	})
 
-	// If the order is cooked, call the delivery service
-	if status == "COOKED" {
-		order, exists := s.GetOrder(event.OrderID)
-		if exists {
-			go s.callDeliveryService(context.Background(), order)
-		}
-	}
-
 	w.WriteHeader(http.StatusOK)
 }
 
-// callDeliveryService sends a deliver request to the delivery service.
-func (s *Store) callDeliveryService(ctx context.Context, order *Order) {
-	deliverReq := DeliverRequest{
-		OrderID:    order.OrderID,
-		OrderItems: order.OrderItems,
-	}
-
-	body, err := json.Marshal(deliverReq)
-	if err != nil {
-		slog.Error("failed to marshal deliver request", "orderId", order.OrderID, "error", err)
-		return
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.deliveryURL+"/deliver", bytes.NewReader(body))
-	if err != nil {
-		slog.Error("failed to create delivery request", "orderId", order.OrderID, "error", err)
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		slog.Error("failed to call delivery service", "orderId", order.OrderID, "error", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusAccepted {
-		slog.Warn("delivery service returned unexpected status", "orderId", order.OrderID, "status", resp.StatusCode)
-	}
-}
-
-// trackEvent stores an event in the order's event history.
-func (s *Store) trackEvent(event OrderEvent) {
+// trackEvent stores an event in the order's event history keyed by UUID.
+func (s *Store) trackEvent(orderID uuid.UUID, event OrderEvent) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.events[event.OrderID] = append(s.events[event.OrderID], event)
+	s.events[orderID] = append(s.events[orderID], event)
 }
 
 // GetOrderEvents retrieves all events for a given order ID.

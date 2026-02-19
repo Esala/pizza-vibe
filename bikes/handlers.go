@@ -3,6 +3,7 @@ package bikes
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"math/rand"
 	"net/http"
@@ -18,8 +19,16 @@ type BikeService struct {
 	bikes           map[string]*Bike
 	eventEmitter    func(event BikeEvent)
 	releaseDuration func() time.Duration
-	deliveryURL     string
+	storeURL        string
 	httpClient      *http.Client
+}
+
+// storeOrderEvent matches the OrderEvent structure expected by the store /events endpoint.
+type storeOrderEvent struct {
+	OrderID string `json:"orderId"`
+	Status  string `json:"status"`
+	Source  string `json:"source"`
+	Message string `json:"message,omitempty"`
 }
 
 func defaultReleaseDuration() time.Duration {
@@ -30,7 +39,7 @@ func NewBikeService() *BikeService {
 	return &BikeService{
 		bikes:           DefaultBikes(),
 		releaseDuration: defaultReleaseDuration,
-		deliveryURL:     "http://delivery:8082",
+		storeURL:        "http://store:8080",
 		httpClient:      &http.Client{Timeout: 10 * time.Second},
 	}
 }
@@ -41,9 +50,9 @@ func NewBikeServiceWithBikes(bikes map[string]*Bike) *BikeService {
 	}
 }
 
-// SetDeliveryURL sets the delivery service URL for sending progress events.
-func (s *BikeService) SetDeliveryURL(url string) {
-	s.deliveryURL = url
+// SetStoreURL sets the store service URL for sending progress events.
+func (s *BikeService) SetStoreURL(url string) {
+	s.storeURL = url
 }
 
 func (s *BikeService) HandleGetAll(w http.ResponseWriter, r *http.Request) {
@@ -171,7 +180,7 @@ func (s *BikeService) autoRelease(bikeID string, user string) {
 				Timestamp: time.Now(),
 			})
 		}
-		s.sendProgressToDelivery(orderID, bikeID, progress)
+		s.sendProgressToStore(orderID, bikeID, progress)
 		slog.Info("bike on route", "bikeId", bikeID, "user", user, "progress", progress)
 	}
 
@@ -187,25 +196,25 @@ func (s *BikeService) autoRelease(bikeID string, user string) {
 	s.mu.Unlock()
 }
 
-// sendProgressToDelivery sends a bike progress event to the delivery service.
-func (s *BikeService) sendProgressToDelivery(orderID, bikeID string, progress int) {
-	if s.deliveryURL == "" {
+// sendProgressToStore sends a bike progress event to the store service /events endpoint.
+func (s *BikeService) sendProgressToStore(orderID, bikeID string, progress int) {
+	if s.storeURL == "" {
 		return
 	}
-	event := BikeProgressEvent{
-		OrderID:  orderID,
-		BikeID:   bikeID,
-		Progress: progress,
-		Status:   StatusReserved,
+	event := storeOrderEvent{
+		OrderID: orderID,
+		Status:  "ON_ROUTE",
+		Source:  "bikes",
+		Message: fmt.Sprintf("Bike %s delivery progress: %d%%", bikeID, progress),
 	}
 	body, err := json.Marshal(event)
 	if err != nil {
 		slog.Error("failed to marshal bike progress", "error", err)
 		return
 	}
-	resp, err := s.httpClient.Post(s.deliveryURL+"/bike-progress", "application/json", bytes.NewReader(body))
+	resp, err := s.httpClient.Post(s.storeURL+"/events", "application/json", bytes.NewReader(body))
 	if err != nil {
-		slog.Warn("failed to send progress to delivery", "bikeId", bikeID, "error", err)
+		slog.Warn("failed to send progress to store", "bikeId", bikeID, "error", err)
 		return
 	}
 	defer resp.Body.Close()
