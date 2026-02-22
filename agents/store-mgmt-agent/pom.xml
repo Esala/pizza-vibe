@@ -61,6 +61,11 @@
       <groupId>io.quarkiverse.langchain4j</groupId>
       <artifactId>quarkus-langchain4j-mcp</artifactId>
     </dependency>
+<!--    <dependency>-->
+<!--      <groupId>io.quarkiverse.langchain4j</groupId>-->
+<!--      <artifactId>quarkus-langchain4j-agentic</artifactId>-->
+<!--      <version>${quarkus-langchain4j.version}</version>-->
+<!--    </dependency>-->
     <dependency>
       <groupId>io.quarkiverse.dapr</groupId>
       <artifactId>quarkus-agentic-dapr</artifactId>

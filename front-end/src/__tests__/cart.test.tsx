@@ -42,6 +42,11 @@ describe('Cart Functionality', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     sessionStorage.clear();
+    // Mock drinks-stock fetch that fires on component mount
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => [],
+    });
   });
 
   it('displays an Add to Cart button', () => {

@@ -13,6 +13,8 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 
+import java.util.Arrays;
+
 @Path("/cook")
 public class CookingResource {
 
@@ -32,8 +34,7 @@ public class CookingResource {
   @POST
   @Consumes(MediaType.APPLICATION_JSON)
   public String cookPizza(CookRequest request) {
-    return cookingAgent.cook(
-        "Please cook the following pizza: " + request.pizzaName() + ". The order ID is: " + request.orderId());
+    return cookingAgent.cook(request.orderId(), Arrays.toString(request.orderItems().toArray()));
   }
 
 }

@@ -41,7 +41,7 @@ class InventoryToolTest {
 
     @Test
     void shouldAcquireInventoryItem() {
-        String result = inventoryTool.acquireItem("Pepperoni");
+        String result = inventoryTool.acquireItem("Pepperoni", "order-test");
 
         assertNotNull(result);
         assertTrue(result.contains("ACQUIRED"));
@@ -50,7 +50,7 @@ class InventoryToolTest {
 
     @Test
     void shouldReportEmptyWhenItemNotAvailable() {
-        String result = inventoryTool.acquireItem("EmptyItem");
+        String result = inventoryTool.acquireItem("EmptyItem", "order-test");
 
         assertNotNull(result);
         assertTrue(result.contains("EMPTY"));

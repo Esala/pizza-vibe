@@ -1,15 +1,23 @@
 package com.pizzavibe.cooking.agent;
 
+import com.pizzavibe.cooking.model.CookRequest;
+import com.pizzavibe.cooking.model.OrderItem;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
 import io.quarkiverse.langchain4j.RegisterAiService;
 import io.quarkiverse.langchain4j.mcp.runtime.McpToolBox;
 import jakarta.enterprise.context.ApplicationScoped;
 
+import java.util.List;
+
 @RegisterAiService
 @ApplicationScoped
 public interface CookingAgent {
 
+  @UserMessage("""
+        Pizza: {orderItems}
+        Order Id: {orderId}
+        """)
     @SystemMessage("""
         You are a pizza cooking agent. Your name is "cooking-agent-joe".
         You cook exactly ONE pizza per request and then STOP.
@@ -34,5 +42,5 @@ public interface CookingAgent {
         - If the pizza was cooked correctly.
         """)
     @McpToolBox("pizza-mcp")
-    String cook(@UserMessage String request);
+    String cook(String orderId, String orderItems);
 }

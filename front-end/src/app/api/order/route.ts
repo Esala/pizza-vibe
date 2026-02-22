@@ -5,8 +5,14 @@ interface OrderItem {
   quantity: number;
 }
 
+interface DrinkItem {
+  drinkType: string;
+  quantity: number;
+}
+
 interface OrderRequest {
   orderItems: OrderItem[];
+  drinkItems?: DrinkItem[];
 }
 
 function validateOrderRequest(body: unknown): body is OrderRequest {
@@ -33,6 +39,28 @@ function validateOrderRequest(body: unknown): body is OrderRequest {
 
     if (typeof orderItem.quantity !== 'number') {
       return false;
+    }
+  }
+
+  if (req.drinkItems !== undefined) {
+    if (!Array.isArray(req.drinkItems)) {
+      return false;
+    }
+
+    for (const item of req.drinkItems) {
+      if (!item || typeof item !== 'object') {
+        return false;
+      }
+
+      const drinkItem = item as Record<string, unknown>;
+
+      if (typeof drinkItem.drinkType !== 'string') {
+        return false;
+      }
+
+      if (typeof drinkItem.quantity !== 'number') {
+        return false;
+      }
     }
   }
 

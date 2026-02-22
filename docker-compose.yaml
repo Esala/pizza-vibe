@@ -10,6 +10,7 @@ services:
       - OVEN_SERVICE_URL=http://oven:8085
       - INVENTORY_SERVICE_URL=http://inventory:8084
       - BIKES_SERVICE_URL=http://bikes:8088
+      - DRINKS_STOCK_SERVICE_URL=http://drinks-stock:8090
     networks:
       - pizza-network
     depends_on:
@@ -86,6 +87,22 @@ services:
       timeout: 10s
       retries: 3
 
+  drinks-stock:
+    build:
+      context: .
+      dockerfile: drinks-stock/Dockerfile
+    ports:
+      - "8090:8090"
+    environment:
+      - PORT=8090
+    networks:
+      - pizza-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   pizza-mcp:
     build:
       context: ./agents/pizza-mcp
@@ -96,6 +113,7 @@ services:
       - INVENTORY_SERVICE_URL=http://inventory:8084
       - OVEN_SERVICE_URL=http://oven:8085
       - STORE_SERVICE_URL=http://store:8080
+      - DRINKS_STOCK_SERVICE_URL=http://drinks-stock:8090
     networks:
       - pizza-network
     healthcheck:

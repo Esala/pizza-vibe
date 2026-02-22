@@ -1,22 +1,26 @@
 package com.pizzavibe.store.agent;
 
+import com.pizzavibe.store.model.DrinkItem;
 import dev.langchain4j.agentic.Agent;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.service.V;
 import io.quarkiverse.langchain4j.mcp.runtime.McpToolBox;
-import jakarta.enterprise.context.RequestScoped;
 
-@RequestScoped
+import java.util.List;
+
 public interface DrinksAgent {
   @SystemMessage("""
-        You are an agent in charge of preparing drinks to be delivered.
+        You are an agent in charge of fetching the drinks to be delivered.
+       
+        Get all the drinkItems and fetch them from the drinks stock service.
         
-        Get all the drinks from the request and fetch them from the inventory.
-        
-        Call getInventory() once. Then call acquireItem() for each drink.
+        Call getDrinksStock() once. Then call getDrinkItem() for each drink.
                 If a drink is unavailable, report failure and STOP.
         """)
-  @Agent("Prepare drinks for delivery.")
+  @Agent(name = "Drinks Agent", description = "Get drinks for delivery.",
+      outputKey = "drinksReport")
   @McpToolBox("pizza-mcp")
-  String prepareDrinksForDelivery(@UserMessage String request);
+  @UserMessage("Fetch drinks for order {{orderId}} with drink items: {{drinkItems}}")
+  String fetchDrinks(@V("orderId") String orderId, @V("drinkItems") String drinkItems);
 }

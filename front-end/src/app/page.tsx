@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useOrder } from '@/context/OrderContext';
 
 interface OrderItem {
@@ -8,14 +8,46 @@ interface OrderItem {
   quantity: number;
 }
 
+interface DrinkItem {
+  drinkType: string;
+  quantity: number;
+}
+
+interface DrinksStockItem {
+  item: string;
+  quantity: number;
+}
+
 export default function Home() {
   const [pizzaType, setPizzaType] = useState('Margherita');
   const [quantity, setQuantity] = useState(1);
   const [cart, setCart] = useState<OrderItem[]>([]);
+  const [drinkType, setDrinkType] = useState('');
+  const [drinkQuantity, setDrinkQuantity] = useState(1);
+  const [drinkCart, setDrinkCart] = useState<DrinkItem[]>([]);
+  const [availableDrinks, setAvailableDrinks] = useState<DrinksStockItem[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
 
   const { orderId, setOrderId, events, setEvents, wsConnected, connectWebSocket } = useOrder();
+
+  useEffect(() => {
+    const loadDrinks = async () => {
+      try {
+        const res = await fetch('/api/drinks-stock');
+        if (!res || !res.ok) return;
+        const data = await res.json();
+        if (!Array.isArray(data)) return;
+        setAvailableDrinks(data);
+        if (data.length > 0) {
+          setDrinkType(data[0].item);
+        }
+      } catch {
+        // Drinks stock service unavailable
+      }
+    };
+    loadDrinks();
+  }, []);
 
   const handleAddToCart = () => {
     setCart((prevCart) => {
@@ -40,14 +72,45 @@ export default function Home() {
     );
   };
 
+  const handleAddDrinkToCart = () => {
+    if (!drinkType) return;
+    setDrinkCart((prev) => {
+      const existingIndex = prev.findIndex((item) => item.drinkType === drinkType);
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          quantity: updated[existingIndex].quantity + drinkQuantity,
+        };
+        return updated;
+      }
+      return [...prev, { drinkType, quantity: drinkQuantity }];
+    });
+  };
+
+  const handleRemoveFromDrinkCart = (drinkTypeToRemove: string) => {
+    setDrinkCart((prev) =>
+      prev.filter((item) => item.drinkType !== drinkTypeToRemove)
+    );
+  };
+
+  const hasItems = cart.length > 0 || drinkCart.length > 0;
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (cart.length === 0) return;
+    if (!hasItems) return;
 
     setMessage(null);
     setIsError(false);
     setOrderId(null);
     setEvents([]);
+
+    const orderBody: { orderItems: OrderItem[]; drinkItems?: DrinkItem[] } = {
+      orderItems: cart,
+    };
+    if (drinkCart.length > 0) {
+      orderBody.drinkItems = drinkCart;
+    }
 
     try {
       const response = await fetch('/api/order', {
@@ -55,9 +118,7 @@ export default function Home() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          orderItems: cart,
-        }),
+        body: JSON.stringify(orderBody),
       });
 
       if (response.ok) {
@@ -69,6 +130,7 @@ export default function Home() {
         setMessage('Order placed successfully!');
         setIsError(false);
         setCart([]);
+        setDrinkCart([]);
       } else {
         setMessage('Failed to place order');
         setIsError(true);
@@ -81,8 +143,11 @@ export default function Home() {
 
   const kitchenEvents = events.filter((e) => e.source === 'kitchen');
   const deliveryEvents = events.filter((e) => e.source === 'delivery');
-  const isCooked = kitchenEvents.some((e) => e.status === 'COOKED');
-  const isDelivered = deliveryEvents.some((e) => e.status === 'DELIVERED');
+  const isCooked = events.some((e) => e.status === 'COOKED');
+  const isDelivered = events.some((e) => e.status === 'DELIVERED');
+  const orderStatus = orderId
+    ? isDelivered ? 'DELIVERED' : isCooked ? 'COOKED' : 'PENDING'
+    : null;
 
   return (
     <main>
@@ -112,18 +177,47 @@ export default function Home() {
           />
         </div>
         <button type="button" onClick={handleAddToCart}>Add to Cart</button>
-        {cart.length > 0 && (
+        {availableDrinks.length > 0 && (
+          <>
+            <div>
+              <label htmlFor="drinkType">Drink</label>
+              <select
+                id="drinkType"
+                value={drinkType}
+                onChange={(e) => setDrinkType(e.target.value)}
+              >
+                {availableDrinks.map((drink) => (
+                  <option key={drink.item} value={drink.item}>
+                    {drink.item}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="drinkQuantity">Drink Qty</label>
+              <input
+                id="drinkQuantity"
+                type="number"
+                min="1"
+                value={drinkQuantity}
+                onChange={(e) => setDrinkQuantity(parseInt(e.target.value, 10) || 1)}
+              />
+            </div>
+            <button type="button" onClick={handleAddDrinkToCart}>Add Drink</button>
+          </>
+        )}
+        {hasItems && (
           <table data-testid="cart">
             <thead>
               <tr>
-                <th>Pizza Type</th>
+                <th>Item</th>
                 <th>Quantity</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {cart.map((item) => (
-                <tr key={item.pizzaType}>
+                <tr key={`pizza-${item.pizzaType}`}>
                   <td>{item.pizzaType}</td>
                   <td>{item.quantity}</td>
                   <td>
@@ -136,10 +230,24 @@ export default function Home() {
                   </td>
                 </tr>
               ))}
+              {drinkCart.map((item) => (
+                <tr key={`drink-${item.drinkType}`}>
+                  <td>{item.drinkType}</td>
+                  <td>{item.quantity}</td>
+                  <td>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFromDrinkCart(item.drinkType)}
+                    >
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}
-        <button type="submit" disabled={cart.length === 0}>Place Order</button>
+        <button type="submit" disabled={!hasItems}>Place Order</button>
       </form>
       {message && (
         <p role="status" style={{ color: isError ? 'red' : 'green' }}>
@@ -148,6 +256,9 @@ export default function Home() {
       )}
       {orderId && (
         <p data-testid="order-id">Order ID: {orderId}</p>
+      )}
+      {orderStatus && (
+        <p data-testid="order-status">Order Status: {orderStatus}</p>
       )}
       {orderId && (
         <p data-testid="ws-status">

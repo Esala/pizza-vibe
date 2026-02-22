@@ -38,6 +38,9 @@ public interface DeliveryAgent {
         - The bike used and the time it took to be delivered 
         - If the order was delivered correctly.
         """)
+    @UserMessage("""
+        Order Id: {orderId}
+        """)
     @ToolBox(BikeTools.class)
-    String deliverOrder(@UserMessage String request);
+    String deliverOrder(String orderId);
 }

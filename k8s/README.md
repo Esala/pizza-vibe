@@ -1,0 +1,162 @@
+# Pizza Vibe - Kubernetes Installation Guide
+
+This guide walks you through deploying Pizza Vibe into a local Kubernetes cluster using [KIND](https://kind.sigs.k8s.io/).
+
+## Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/)
+- [KIND](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)
+- [Helm](https://helm.sh/docs/intro/install/)
+- [Java 17+](https://adoptium.net/) (for building agent services)
+- [Maven](https://maven.apache.org/install.html) (or use the included Maven wrapper)
+
+## Quick Start (Script)
+
+To run all the steps below automatically:
+
+```bash
+export OPENAI_API_KEY=<YOUR_OPENAI_API_KEY>
+./scripts/setup-kind.sh
+```
+
+The script is idempotent — it skips steps that are already completed (existing cluster, Dapr already installed, etc.).
+
+## 1. Create a KIND Cluster
+
+```bash
+kind create cluster --name pizza-vibe
+```
+
+Verify the cluster is running:
+
+```bash
+kubectl cluster-info --context kind-pizza-vibe
+```
+
+## 2. Install Dapr
+
+The `store-mgmt-agent` service relies on Dapr for workflow orchestration. Install Dapr using Helm:
+
+```bash
+helm repo add dapr https://dapr.github.io/helm-charts/
+helm repo update
+helm install dapr dapr/dapr --namespace dapr-system --create-namespace --wait
+```
+
+Verify Dapr is running:
+
+```bash
+kubectl get pods -n dapr-system
+```
+
+You should see `dapr-operator`, `dapr-sidecar-injector`, `dapr-sentry`, and `dapr-placement-server` pods in a `Running` state.
+
+## 3. Build the Agent Services (Maven)
+
+The Java/Quarkus agent services under `agents/` must be packaged before building their Docker images. From the project root, run:
+
+```bash
+cd agents/pizza-mcp && ./mvnw clean package -DskipTests && cd ../..
+cd agents/cooking-agent && ./mvnw clean package -DskipTests && cd ../..
+cd agents/delivery-agent && ./mvnw clean package -DskipTests && cd ../..
+cd agents/store-mgmt-agent && ./mvnw clean package -DskipTests && cd ../..
+```
+
+## 4. Build and Load Container Images
+
+Since KIND runs containers inside Docker, you need to build the images locally and then load them into the KIND cluster.
+
+Build all images from the project root:
+
+```bash
+# Go services
+docker build -t pizza-vibe-store:latest -f store/Dockerfile .
+docker build -t pizza-vibe-front-end:latest -f front-end/Dockerfile ./front-end
+docker build -t pizza-vibe-inventory:latest -f inventory/Dockerfile .
+docker build -t pizza-vibe-oven:latest -f oven/Dockerfile .
+docker build -t pizza-vibe-kitchen:latest -f kitchen/Dockerfile .
+docker build -t pizza-vibe-delivery:latest -f delivery/Dockerfile .
+docker build -t pizza-vibe-bikes:latest -f bikes/Dockerfile .
+docker build -t pizza-vibe-drinks-stock:latest -f drinks-stock/Dockerfile .
+
+# Java/Quarkus agent services
+docker build -t pizza-vibe-pizza-mcp:latest -f agents/pizza-mcp/src/main/docker/Dockerfile.jvm ./agents/pizza-mcp
+docker build -t pizza-vibe-cooking-agent:latest -f agents/cooking-agent/src/main/docker/Dockerfile.jvm ./agents/cooking-agent
+docker build -t pizza-vibe-delivery-agent:latest -f agents/delivery-agent/src/main/docker/Dockerfile.jvm ./agents/delivery-agent
+docker build -t pizza-vibe-store-mgmt-agent:latest -f agents/store-mgmt-agent/src/main/docker/Dockerfile.jvm ./agents/store-mgmt-agent
+```
+
+Load all images into the KIND cluster:
+
+```bash
+kind load docker-image pizza-vibe-store:latest --name pizza-vibe
+kind load docker-image pizza-vibe-front-end:latest --name pizza-vibe
+kind load docker-image pizza-vibe-inventory:latest --name pizza-vibe
+kind load docker-image pizza-vibe-oven:latest --name pizza-vibe
+kind load docker-image pizza-vibe-kitchen:latest --name pizza-vibe
+kind load docker-image pizza-vibe-delivery:latest --name pizza-vibe
+kind load docker-image pizza-vibe-bikes:latest --name pizza-vibe
+kind load docker-image pizza-vibe-drinks-stock:latest --name pizza-vibe
+kind load docker-image pizza-vibe-pizza-mcp:latest --name pizza-vibe
+kind load docker-image pizza-vibe-cooking-agent:latest --name pizza-vibe
+kind load docker-image pizza-vibe-delivery-agent:latest --name pizza-vibe
+kind load docker-image pizza-vibe-store-mgmt-agent:latest --name pizza-vibe
+```
+
+## 5. Create Secrets
+
+The `delivery-agent` requires an OpenAI API key. Create the secret before deploying:
+
+```bash
+kubectl create secret generic openai-secret --from-literal=api-key=<YOUR_OPENAI_API_KEY>
+```
+
+## 6. Deploy the Application
+
+Apply all Kubernetes manifests:
+
+```bash
+kubectl apply -f k8s/
+```
+
+Verify all pods are running:
+
+```bash
+kubectl get pods
+```
+
+## 7. Access the Application
+
+Port-forward the front-end service to access it from your browser:
+
+```bash
+kubectl port-forward svc/front-end 3000:3000
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Services
+
+| Service          | Port | Description                              |
+|------------------|------|------------------------------------------|
+| front-end        | 3000 | Next.js web UI                           |
+| store            | 8080 | Store API and order orchestrator         |
+| kitchen          | 8081 | Pizza cooking service                    |
+| delivery         | 8082 | Delivery tracking service                |
+| inventory        | 8084 | Ingredient inventory service             |
+| oven             | 8085 | Oven management service                  |
+| pizza-mcp        | 8086 | MCP server for pizza tools (Quarkus)     |
+| cooking-agent    | 8087 | AI-powered cooking agent (Quarkus)       |
+| bikes            | 8088 | Delivery bikes service                   |
+| delivery-agent   | 8089 | AI-powered delivery agent (Quarkus)      |
+| drinks-stock     | 8090 | Drinks stock management service          |
+| store-mgmt-agent | 9090 | Store management agent with Dapr (Quarkus) |
+
+## Cleanup
+
+Delete the KIND cluster:
+
+```bash
+kind delete cluster --name pizza-vibe
+```

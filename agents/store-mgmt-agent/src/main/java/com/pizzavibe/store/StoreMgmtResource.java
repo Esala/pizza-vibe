@@ -1,5 +1,7 @@
 package com.pizzavibe.store;
 
+import com.pizzavibe.store.model.DrinkItem;
+import com.pizzavibe.store.model.OrderItem;
 import com.pizzavibe.store.model.PizzaOrderStatus;
 import com.pizzavibe.store.model.ProcessOrderRequest;
 import com.pizzavibe.store.workflows.PizzaOrderWorkflow;
@@ -10,6 +12,9 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+
+import java.util.Arrays;
+import java.util.List;
 
 @Path("/mgmt")
 public class StoreMgmtResource {
@@ -26,10 +31,12 @@ public class StoreMgmtResource {
     @POST
     @Path("/processOrder")
     @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
     public PizzaOrderStatus processOrder(ProcessOrderRequest request) {
-        String userMessage = "Process order " + request.orderId()
-                + " with items: " + request.orderItems();
-        return pizzaOrderWorkflowAgent.processPizzaOrder(userMessage);
+      System.out.println(request.toString());
+        return pizzaOrderWorkflowAgent.processPizzaOrder(request.orderId(),
+            Arrays.toString(request.orderItems().toArray()),
+            Arrays.toString(request.drinkItems().toArray()));
     }
 
 

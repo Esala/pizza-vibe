@@ -12,11 +12,19 @@ type OrderItem struct {
 	Quantity  int    `json:"quantity"`
 }
 
+// DrinkItem represents a single drink in an order, containing the drink type
+// and the quantity requested.
+type DrinkItem struct {
+	DrinkType string `json:"drinkType"`
+	Quantity  int    `json:"quantity"`
+}
+
 // Order represents a pizza order with a unique identifier, items, additional data,
 // and current status.
 type Order struct {
 	OrderID     uuid.UUID   `json:"orderId"`
 	OrderItems  []OrderItem `json:"orderItems"`
+	DrinkItems  []DrinkItem `json:"drinkItems,omitempty"`
 	OrderData   string      `json:"orderData"`
 	OrderStatus string      `json:"orderStatus"`
 }

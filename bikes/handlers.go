@@ -164,6 +164,7 @@ func (s *BikeService) autoRelease(bikeID string, user string) {
 	}
 	s.mu.RUnlock()
 
+	s.sendOrderMessageEvent(orderID, bikeID, "preparing to deliver")
 	eventInterval := duration / 4
 	steps := 4
 	for i := 1; i <= steps; i++ {
@@ -194,6 +195,7 @@ func (s *BikeService) autoRelease(bikeID string, user string) {
 		slog.Info("bike auto-released", "bikeId", bikeID)
 	}
 	s.mu.Unlock()
+	s.sendOrderMessageEvent(orderID, bikeID, "delivered")
 }
 
 // sendProgressToStore sends a bike progress event to the store service /events endpoint.
@@ -206,6 +208,30 @@ func (s *BikeService) sendProgressToStore(orderID, bikeID string, progress int) 
 		Status:  "ON_ROUTE",
 		Source:  "bikes",
 		Message: fmt.Sprintf("Bike %s delivery progress: %d%%", bikeID, progress),
+	}
+	body, err := json.Marshal(event)
+	if err != nil {
+		slog.Error("failed to marshal bike progress", "error", err)
+		return
+	}
+	resp, err := s.httpClient.Post(s.storeURL+"/events", "application/json", bytes.NewReader(body))
+	if err != nil {
+		slog.Warn("failed to send progress to store", "bikeId", bikeID, "error", err)
+		return
+	}
+	defer resp.Body.Close()
+}
+
+// sendOrderDeliveredEvent sends an event to the store when the order is delivered.
+func (s *BikeService) sendOrderMessageEvent(orderID, bikeID string, message string) {
+	if s.storeURL == "" {
+		return
+	}
+	event := storeOrderEvent{
+		OrderID: orderID,
+		Status:  "DELIVERED",
+		Source:  "bikes",
+		Message: fmt.Sprintf("Bike %s %s the order: %s", bikeID, message, orderID),
 	}
 	body, err := json.Marshal(event)
 	if err != nil {

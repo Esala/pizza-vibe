@@ -25,7 +25,7 @@ public class DeliveryResource {
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     public String deliverOrderStream(DeliveryRequest request) {
-        return deliveryAgent.deliverOrder("Please deliver the following order: " + request.orderId());
+        return deliveryAgent.deliverOrder(request.orderId());
     }
 
 }

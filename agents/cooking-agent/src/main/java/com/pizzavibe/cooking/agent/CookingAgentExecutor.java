@@ -1,5 +1,6 @@
 package com.pizzavibe.cooking.agent;
 
+import com.pizzavibe.cooking.model.OrderItem;
 import io.a2a.server.agentexecution.AgentExecutor;
 import io.a2a.server.agentexecution.RequestContext;
 import io.a2a.server.events.EventQueue;
@@ -56,11 +57,13 @@ public class CookingAgentExecutor {
                 }
             
                 System.out.println("📋 Calling CookingAgent with " + inputs.size() + " parameters:");
-                System.out.println("   - pizza: " + inputs.get(0));
+                System.out.println("   - orderId: " + inputs.get(0));
+                System.out.println("   - OrderItems: " + inputs.get(1));
                 
                 // Call the agent with all parameters
                 String agentResponse = cookingAgent.cook(
-                        inputs.get(0));                     // cooking request
+                        inputs.get(0),
+                        inputs.get(1));                     // cooking request
                 
                 System.out.println("✅ CookingAgent response: " + agentResponse);
                 System.out.println("🍕 ========================================");

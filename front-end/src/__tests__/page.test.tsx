@@ -59,6 +59,11 @@ describe('Home Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     sessionStorage.clear();
+    // Mock drinks-stock fetch that fires on component mount
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => [],
+    });
   });
 
   it('renders the page title', () => {

@@ -1,4 +1,6 @@
 package com.pizzavibe.cooking.model;
 
-public record CookRequest(String pizzaName, String orderId) {
+import java.util.List;
+
+public record CookRequest(String orderId, List<OrderItem> orderItems) {
 }

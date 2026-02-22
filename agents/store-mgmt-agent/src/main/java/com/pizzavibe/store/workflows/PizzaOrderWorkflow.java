@@ -1,31 +1,41 @@
 package com.pizzavibe.store.workflows;
 
-import com.pizzavibe.store.agent.CookingRemoteAgent;
 import com.pizzavibe.store.agent.DeliveryRemoteAgent;
+import com.pizzavibe.store.model.DrinkItem;
+import com.pizzavibe.store.model.KitchenOrderStatus;
+import com.pizzavibe.store.model.KitchenStatus;
 import com.pizzavibe.store.model.OrderFinalStatus;
+import com.pizzavibe.store.model.OrderItem;
 import com.pizzavibe.store.model.PizzaOrderStatus;
+import com.pizzavibe.store.model.ProcessOrderRequest;
 import dev.langchain4j.agentic.declarative.Output;
 import dev.langchain4j.agentic.declarative.SequenceAgent;
 import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.service.V;
+
+import java.util.List;
 
 public interface PizzaOrderWorkflow {
 
-    @SequenceAgent(outputKey = "pizzaOrderAgentResult",
-      subAgents = { CookingRemoteAgent.class, DeliveryRemoteAgent.class})
-    PizzaOrderStatus processPizzaOrder(@UserMessage String request);
+  @SequenceAgent(outputKey = "pizzaOrderAgentResult",
+      subAgents = {CoordinateKitchenWorkflow.class, DeliveryRemoteAgent.class})
+  @UserMessage("Process pizza order {{orderId}} with items {{orderItems}} and drinks {{drinkItems}}")
+  PizzaOrderStatus processPizzaOrder(@V("orderId") String orderId,
+                                     @V("orderItems") String orderItems,
+                                     @V("drinkItems") String drinkItems);
 
   @Output
-  static PizzaOrderStatus output(String kitchenReport, String deliveryReport) {
+  static PizzaOrderStatus output(KitchenOrderStatus kitchenReport, String deliveryReport) {
     boolean kitchenFailed = false;
     boolean deliveryFailed = false;
     OrderFinalStatus status = OrderFinalStatus.SUCCESS;
-    if(kitchenReport == null || kitchenReport.contains("ERROR") || kitchenReport.contains("FAILED")) {
+    if (kitchenReport == null || kitchenReport.status() ==  KitchenStatus.FAILED) {
       kitchenFailed = true;
     }
-    if(deliveryReport == null || deliveryReport.contains("ERROR") || deliveryReport.contains("FAILED")) {
+    if (deliveryReport == null || deliveryReport.contains("ERROR") || deliveryReport.contains("FAILED")) {
       deliveryFailed = true;
     }
-    if(kitchenFailed || deliveryFailed) {
+    if (kitchenFailed || deliveryFailed) {
       status = OrderFinalStatus.FAILED;
     }
     return new PizzaOrderStatus(status, kitchenReport, deliveryReport);

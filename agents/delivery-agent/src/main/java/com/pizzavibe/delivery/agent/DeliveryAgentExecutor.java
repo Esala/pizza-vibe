@@ -56,7 +56,7 @@ public class DeliveryAgentExecutor {
                 }
             
                 System.out.println("📋 Calling CookingAgent with " + inputs.size() + " parameters:");
-                System.out.println("   - pizza: " + inputs.get(0));
+                System.out.println("   - orderId: " + inputs.get(0));
                 
                 // Call the agent with all parameters
                 String agentResponse = deliveryAgent.deliverOrder(

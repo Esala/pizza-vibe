@@ -40,12 +40,15 @@ public class OvenTool {
             @ToolArg(description = "The oven ID (e.g., oven-1, oven-2, oven-3, oven-4)") String ovenId,
             @ToolArg(description = "The order ID to track progress for") String orderId) {
         int maxAttempts = 30;
+        sendMessageEventToStore( orderId, "Preparing pizza in oven: "+ ovenId);
         for (int i = 0; i < maxAttempts; i++) {
             Oven oven = ovenClient.getById(ovenId);
-            // Send progress event to kitchen
-            sendProgressToKitchen(orderId, ovenId, oven.progress(), oven.status());
+            // Send progress event to store
+            sendProgressToStore(orderId, ovenId, oven.progress(), oven.status());
             if (Oven.STATUS_AVAILABLE.equals(oven.status())) {
-                return "Oven: " + oven.id() + ", Status: " + oven.status() + ", Progress: 100%";
+              sendProgressToStore(orderId, ovenId, 100, oven.status());
+              sendMessageEventToStore( orderId, "Pizza cooked!");
+              return "Oven: " + oven.id() + ", Status: " + oven.status() + ", Progress: 100%";
             }
             try {
                 Thread.sleep(1000);
@@ -65,14 +68,24 @@ public class OvenTool {
         return "Oven: " + oven.id() + ", Status: " + oven.status() + ", User: " + oven.user();
     }
 
-    private void sendProgressToKitchen(String orderId, String ovenId, int progress, String status) {
+    private void sendProgressToStore(String orderId, String ovenId, int progress, String status) {
         try {
             String cleanOrderId = orderId != null ? orderId.trim() : "";
             String message = "Oven " + ovenId + " progress: " + progress + "%";
-            StoreOrderEvent event = new StoreOrderEvent(cleanOrderId, status, "kitchen", message, null, null);
+            StoreOrderEvent event = new StoreOrderEvent(cleanOrderId, status, "kitchen", message);
             storeClient.sendEvent(event);
         } catch (Exception e) {
             LOG.warn("Failed to send progress to store (orderId=" + orderId + "): " + e.getMessage());
+        }
+    }
+
+    private void sendMessageEventToStore(String orderId, String message) {
+        try {
+            String cleanOrderId = orderId != null ? orderId.trim() : "";
+            StoreOrderEvent event = new StoreOrderEvent(cleanOrderId, "COOKED", "kitchen", message);
+            storeClient.sendEvent(event);
+        } catch (Exception e) {
+            LOG.warn("Failed to send event to store (orderId=" + orderId + "): " + e.getMessage());
         }
     }
 }

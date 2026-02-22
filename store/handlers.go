@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -15,6 +14,7 @@ import (
 // CreateOrderRequest represents the request body for creating a new order.
 type CreateOrderRequest struct {
 	OrderItems []OrderItem `json:"orderItems"`
+	DrinkItems []DrinkItem `json:"drinkItems,omitempty"`
 	OrderData  string      `json:"orderData"`
 }
 
@@ -22,6 +22,7 @@ type CreateOrderRequest struct {
 type ProcessOrderRequest struct {
 	OrderID    uuid.UUID   `json:"orderId"`
 	OrderItems []OrderItem `json:"orderItems"`
+	DrinkItems []DrinkItem `json:"drinkItems"`
 }
 
 // Store manages pizza orders and provides HTTP handlers for the store service.
@@ -41,9 +42,7 @@ func NewStore() *Store {
 		events:   make(map[uuid.UUID][]OrderEvent),
 		hub:      NewWebSocketHub(),
 		agentURL: "http://store-mgmt-agent:9090",
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		httpClient: &http.Client{},
 	}
 }
 
@@ -62,7 +61,7 @@ func (s *Store) HandleCreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate that at least one item is provided
-	if len(req.OrderItems) == 0 {
+	if len(req.OrderItems) == 0 && len(req.DrinkItems) == 0 {
 		http.Error(w, "Order must contain at least one item", http.StatusBadRequest)
 		return
 	}
@@ -71,6 +70,7 @@ func (s *Store) HandleCreateOrder(w http.ResponseWriter, r *http.Request) {
 	order := &Order{
 		OrderID:     uuid.New(),
 		OrderItems:  req.OrderItems,
+		DrinkItems:  req.DrinkItems,
 		OrderData:   req.OrderData,
 		OrderStatus: "pending",
 	}
@@ -96,6 +96,7 @@ func (s *Store) callStoreMgmtAgent(ctx context.Context, order *Order) {
 	processReq := ProcessOrderRequest{
 		OrderID:    order.OrderID,
 		OrderItems: order.OrderItems,
+		DrinkItems: order.DrinkItems,
 	}
 
 	body, err := json.Marshal(processReq)
@@ -167,8 +168,14 @@ func (s *Store) HandleEvent(w http.ResponseWriter, r *http.Request) {
 	// A failed lookup is not fatal — progress events must still reach the UI.
 	orderID, parseErr := uuid.Parse(event.OrderID)
 	if parseErr == nil {
-		if !s.UpdateOrderStatus(orderID, event.Status) {
-			slog.Warn("order not found for event", "orderId", event.OrderID, "status", event.Status, "source", event.Source)
+		// Only transition order status for meaningful state changes:
+		// PENDING → COOKED → DELIVERED. Intermediate progress events
+		// (e.g. oven_progress, ON_ROUTE) are tracked but do not alter the order status.
+		switch event.Status {
+		case "COOKED", "DELIVERED":
+			if !s.UpdateOrderStatus(orderID, event.Status) {
+				slog.Warn("order not found for event", "orderId", event.OrderID, "status", event.Status, "source", event.Source)
+			}
 		}
 		s.trackEvent(orderID, event)
 	} else {
