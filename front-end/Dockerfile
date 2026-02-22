@@ -3,10 +3,6 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Build argument for store service URL
-ARG STORE_SERVICE_URL=http://store:8080
-ENV STORE_SERVICE_URL=${STORE_SERVICE_URL}
-
 # Copy package files
 COPY package.json package-lock.json ./
 

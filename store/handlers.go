@@ -41,7 +41,7 @@ func NewStore() *Store {
 		orders:   make(map[uuid.UUID]*Order),
 		events:   make(map[uuid.UUID][]OrderEvent),
 		hub:      NewWebSocketHub(),
-		agentURL: "http://store-mgmt-agent:9090",
+		agentURL: "http://store-mgmt-agent:9999",
 		httpClient: &http.Client{},
 	}
 }

@@ -5,7 +5,7 @@ import dev.langchain4j.service.UserMessage;
 
 public interface CookingRemoteAgent {
 
-  @A2AClientAgent(a2aServerUrl = "http://localhost:8087",
+  @A2AClientAgent(a2aServerUrl = "http://cooking-agent:8087",
       outputKey = "cookingReport",
       name = "Cooking Agent (Remote)",
       description = "Agent that coordinate the cooking of an order.")

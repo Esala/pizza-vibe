@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cooking-agent
+  labels:
+    app: cooking-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cooking-agent
+  template:
+    metadata:
+      labels:
+        app: cooking-agent
+    spec:
+      containers:
+        - name: cooking-agent
+          image: pizza-vibe-cooking-agent:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8087
+          env:
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: anthropic-secret
+                  key: api-key
+            - name: PIZZA_MCP_URL
+              value: "http://pizza-mcp:8086/mcp/sse"
+          livenessProbe:
+            httpGet:
+              path: /q/health
+              port: 8087
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /q/health
+              port: 8087
+            initialDelaySeconds: 15
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cooking-agent
+  labels:
+    app: cooking-agent
+spec:
+  selector:
+    app: cooking-agent
+  ports:
+    - port: 8087
+      targetPort: 8087
+      protocol: TCP
+  type: ClusterIP

@@ -21,10 +21,10 @@ spec:
           ports:
             - containerPort: 8089
           env:
-            - name: OPENAI_API_KEY
+            - name: ANTHROPIC_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: openai-secret
+                  name: anthropic-secret
                   key: api-key
             - name: BIKES_SERVICE_URL
               value: "http://bikes:8088"

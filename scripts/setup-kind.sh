@@ -37,9 +37,27 @@ kubectl get pods -n dapr-system
 echo ""
 
 # -------------------------------------------------------
-# 3. Build agent services (Maven)
+# 3. Install PostgreSQL
 # -------------------------------------------------------
-echo "--- Step 3: Building agent services with Maven ---"
+echo "--- Step 3: Installing PostgreSQL ---"
+helm repo add bitnami https://charts.bitnami.com/bitnami 2>/dev/null || true
+helm repo update
+if helm status postgresql &>/dev/null; then
+  echo "PostgreSQL is already installed, skipping."
+else
+  helm install postgresql bitnami/postgresql \
+    --set auth.postgresPassword=postgres \
+    --set auth.database=dapr_store \
+    --wait
+fi
+echo "PostgreSQL pods:"
+kubectl get pods -l app.kubernetes.io/name=postgresql
+echo ""
+
+# -------------------------------------------------------
+# 4. Build agent services (Maven)
+# -------------------------------------------------------
+echo "--- Step 4: Building agent services with Maven ---"
 AGENTS=(pizza-mcp cooking-agent delivery-agent store-mgmt-agent)
 for agent in "${AGENTS[@]}"; do
   echo "Building agents/$agent ..."
@@ -48,39 +66,35 @@ done
 echo ""
 
 # -------------------------------------------------------
-# 4. Build Docker images
+# 5. Build Docker images
 # -------------------------------------------------------
-echo "--- Step 4: Building Docker images ---"
+echo "--- Step 5: Building Docker images ---"
 cd "$PROJECT_ROOT"
 
-# Go services
+# Store image (includes front-end static export)
 docker build -t pizza-vibe-store:latest -f store/Dockerfile .
-docker build -t pizza-vibe-front-end:latest -f front-end/Dockerfile ./front-end
+
+# Go services
 docker build -t pizza-vibe-inventory:latest -f inventory/Dockerfile .
 docker build -t pizza-vibe-oven:latest -f oven/Dockerfile .
-docker build -t pizza-vibe-kitchen:latest -f kitchen/Dockerfile .
-docker build -t pizza-vibe-delivery:latest -f delivery/Dockerfile .
 docker build -t pizza-vibe-bikes:latest -f bikes/Dockerfile .
 docker build -t pizza-vibe-drinks-stock:latest -f drinks-stock/Dockerfile .
 
 # Java/Quarkus agent services
 docker build -t pizza-vibe-pizza-mcp:latest -f agents/pizza-mcp/src/main/docker/Dockerfile.jvm ./agents/pizza-mcp
 docker build -t pizza-vibe-cooking-agent:latest -f agents/cooking-agent/src/main/docker/Dockerfile.jvm ./agents/cooking-agent
-docker build -t pizza-vibe-delivery-agent:latest -f agents/delivery-agent/src/main/docker/Dockerfile.jvm ./agents/delivery-agent
+docker build -t pizza-vibe-delivery-agent:latest -f agents/delivery-agent/src/main/docker/Dockerfile.jvm .
 docker build -t pizza-vibe-store-mgmt-agent:latest -f agents/store-mgmt-agent/src/main/docker/Dockerfile.jvm ./agents/store-mgmt-agent
 echo ""
 
 # -------------------------------------------------------
-# 5. Load images into KIND
+# 6. Load images into KIND
 # -------------------------------------------------------
-echo "--- Step 5: Loading images into KIND cluster ---"
+echo "--- Step 6: Loading images into KIND cluster ---"
 IMAGES=(
   pizza-vibe-store
-  pizza-vibe-front-end
   pizza-vibe-inventory
   pizza-vibe-oven
-  pizza-vibe-kitchen
-  pizza-vibe-delivery
   pizza-vibe-bikes
   pizza-vibe-drinks-stock
   pizza-vibe-pizza-mcp
@@ -95,25 +109,25 @@ done
 echo ""
 
 # -------------------------------------------------------
-# 6. Create secrets
+# 7. Create secrets
 # -------------------------------------------------------
-echo "--- Step 6: Creating secrets ---"
-if [ -z "${OPENAI_API_KEY:-}" ]; then
-  echo "WARNING: OPENAI_API_KEY environment variable is not set."
+echo "--- Step 7: Creating secrets ---"
+if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+  echo "WARNING: ANTHROPIC_API_KEY environment variable is not set."
   echo "Set it and re-run, or create the secret manually:"
-  echo "  kubectl create secret generic openai-secret --from-literal=api-key=<YOUR_KEY>"
+  echo "  kubectl create secret generic anthropic-secret --from-literal=api-key=<YOUR_KEY>"
 else
-  kubectl create secret generic openai-secret \
-    --from-literal=api-key="$OPENAI_API_KEY" \
+  kubectl create secret generic anthropic-secret \
+    --from-literal=api-key="$ANTHROPIC_API_KEY" \
     --dry-run=client -o yaml | kubectl apply -f -
-  echo "Secret 'openai-secret' created."
+  echo "Secret 'anthropic-secret' created."
 fi
 echo ""
 
 # -------------------------------------------------------
-# 7. Deploy the application
+# 8. Deploy the application
 # -------------------------------------------------------
-echo "--- Step 7: Deploying application ---"
+echo "--- Step 8: Deploying application ---"
 kubectl apply -f "$PROJECT_ROOT/k8s/"
 echo ""
 
@@ -124,5 +138,5 @@ echo ""
 
 echo "=== Setup complete ==="
 echo "Access the application with:"
-echo "  kubectl port-forward svc/front-end 3000:3000"
-echo "Then open http://localhost:3000"
+echo "  kubectl port-forward svc/store 8080:8080"
+echo "Then open http://localhost:8080"

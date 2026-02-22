@@ -20,7 +20,7 @@ public class DeliveryAgentCard {
         return new AgentCard.Builder()
                 .name("Delivery Agent")
                 .description("Delivery orders using the bikes skill.")
-                .url("http://localhost:8089/")
+                .url("http://delivery-agent:8089/")
                 .version("1.0.0")
                 .protocolVersion("1.0.0")
                 .capabilities(new AgentCapabilities.Builder()

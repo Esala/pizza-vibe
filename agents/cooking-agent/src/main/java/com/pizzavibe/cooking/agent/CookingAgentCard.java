@@ -20,7 +20,7 @@ public class CookingAgentCard {
         return new AgentCard.Builder()
                 .name("Cooking Agent")
                 .description("Cooks pizza using the inventory and oven services via MCP.")
-                .url("http://localhost:8087/")
+                .url("http://cooking-agent:8087/")
                 .version("1.0.0")
                 .protocolVersion("1.0.0")
                 .capabilities(new AgentCapabilities.Builder()

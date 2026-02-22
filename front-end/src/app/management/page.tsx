@@ -32,8 +32,6 @@ interface OrderEvent {
 export default function ManagementPage() {
   const [services, setServices] = useState<ServiceStatus[]>([
     { name: 'Store Service', status: 'unhealthy', url: '/api/health/store' },
-    { name: 'Kitchen Service', status: 'unhealthy', url: '/api/health/kitchen' },
-    { name: 'Delivery Service', status: 'unhealthy', url: '/api/health/delivery' },
   ]);
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);

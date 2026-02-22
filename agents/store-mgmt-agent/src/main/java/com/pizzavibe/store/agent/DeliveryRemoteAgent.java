@@ -5,7 +5,7 @@ import dev.langchain4j.agentic.declarative.A2AClientAgent;
 import dev.langchain4j.service.UserMessage;
 
 public interface DeliveryRemoteAgent {
-  @A2AClientAgent(a2aServerUrl = "http://localhost:8089",
+  @A2AClientAgent(a2aServerUrl = "http://delivery-agent:8089",
       outputKey = "deliveryReport",
       name = "Delivery Agent (Remote)",
       description = "Agent that delivers an order.")

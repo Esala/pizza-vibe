@@ -1,27 +1,4 @@
 services:
-  front-end:
-    build:
-      context: ./front-end
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    environment:
-      - STORE_SERVICE_URL=http://store:8080
-      - OVEN_SERVICE_URL=http://oven:8085
-      - INVENTORY_SERVICE_URL=http://inventory:8084
-      - BIKES_SERVICE_URL=http://bikes:8088
-      - DRINKS_STOCK_SERVICE_URL=http://drinks-stock:8090
-    networks:
-      - pizza-network
-    depends_on:
-      store:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/"]
-      interval: 2s
-      timeout: 10s
-      retries: 3
-
   store:
     build:
       context: .
@@ -30,7 +7,11 @@ services:
       - "8080:8080"
     environment:
       - PORT=8080
-      - STORE_MGMT_AGENT_URL=http://docker.for.mac.host.internal:9090
+      - OVEN_SERVICE_URL=http://oven:8085
+      - INVENTORY_SERVICE_URL=http://inventory:8084
+      - BIKES_SERVICE_URL=http://bikes:8088
+      - DRINKS_STOCK_SERVICE_URL=http://drinks-stock:8090
+      - STORE_MGMT_AGENT_URL=http://docker.for.mac.host.internal:9999
     networks:
       - pizza-network
     healthcheck:
@@ -129,7 +110,7 @@ services:
     ports:
       - "8087:8087"
     environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - PIZZA_MCP_URL=http://pizza-mcp:8086/mcp/sse
     networks:
       - pizza-network
@@ -146,7 +127,7 @@ services:
     ports:
       - "8089:8089"
     environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - BIKES_SERVICE_URL=http://bikes:8088
       - BIKES_SKILL_SCRIPTS_PATH=/deployments/skills/bikes/scripts
     networks:
@@ -163,13 +144,13 @@ services:
 #      context: ./agents/store-mgmt-agent
 #      dockerfile: src/main/docker/Dockerfile.jvm
 #    ports:
-#      - "9090:9090"
+#      - "9999:9999"
 #    environment:
-#      - OPENAI_API_KEY=${OPENAI_API_KEY}
+#      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
 #    networks:
 #      - pizza-network
 #    healthcheck:
-#      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/q/health"]
+#      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9999/q/health"]
 #      interval: 30s
 #      timeout: 10s
 #      retries: 3

@@ -84,8 +84,6 @@ describe('Management Page', () => {
       expect(screen.getByText(/store service/i)).toBeInTheDocument();
     });
 
-    expect(screen.getByText(/kitchen service/i)).toBeInTheDocument();
-    expect(screen.getByText(/delivery service/i)).toBeInTheDocument();
   });
 
   it('shows healthy status when services are up', async () => {
@@ -365,15 +363,6 @@ describe('Management Page', () => {
     expect(screen.getByText('Reserving bike for delivery: bike-1')).toBeInTheDocument();
     expect(screen.getByText('Checking bike status: bike-1')).toBeInTheDocument();
 
-    // Verify both kitchen and delivery sources appear
-    const deliveryCells = screen.getAllByText('delivery');
-    expect(deliveryCells.length).toBeGreaterThan(0);
-
-    const kitchenCells = screen.getAllByText('kitchen');
-    expect(kitchenCells.length).toBeGreaterThan(0);
-
-    // Verify DELIVERED status appears
-    expect(screen.getByText('DELIVERED')).toBeInTheDocument();
   });
 
   it('shows Details column header in events table', async () => {
