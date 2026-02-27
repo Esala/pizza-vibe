@@ -13,6 +13,8 @@ spec:
     metadata:
       labels:
         app: cooking-agent
+      annotations:
+        instrumentation.opentelemetry.io/inject-java: "opentelemetry/instrumentation"
     spec:
       containers:
         - name: cooking-agent

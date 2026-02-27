@@ -13,6 +13,9 @@ spec:
     metadata:
       labels:
         app: drinks-stock
+      annotations:
+        instrumentation.opentelemetry.io/inject-go: "opentelemetry/instrumentation"
+        instrumentation.opentelemetry.io/otel-go-auto-target-exe: "/app/drinks-stock"
     spec:
       containers:
         - name: drinks-stock

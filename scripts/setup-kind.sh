@@ -77,7 +77,101 @@ echo "Secret 'anthropic-secret' created."
 echo ""
 
 # -------------------------------------------------------
-# 5-9. Build, load images, and deploy
+# 5. Install Jaeger
+# -------------------------------------------------------
+echo "--- Step 5: Installing Jaeger ---"
+helm repo add jaegertracing https://jaegertracing.github.io/helm-charts 2>/dev/null || true
+helm repo update
+if helm status jaeger &>/dev/null; then
+  echo "Jaeger is already installed, skipping."
+else
+  helm install jaeger jaegertracing/jaeger --version 3.4.1 -f "$PROJECT_ROOT/jaeger/values.yaml" --wait
+fi
+echo "Jaeger pods:"
+kubectl get pods -l app.kubernetes.io/name=jaeger
+echo ""
+
+# -------------------------------------------------------
+# 6. Create OpenTelemetry namespace and Dash0 secrets
+# -------------------------------------------------------
+echo "--- Step 6: Creating OpenTelemetry namespace and Dash0 secrets ---"
+kubectl create namespace opentelemetry --dry-run=client -o yaml | kubectl apply -f -
+
+if [ -n "${DASH0_AUTH_TOKEN:-}" ]; then
+  DASH0_ENDPOINT_OTLP_GRPC_HOSTNAME="${DASH0_ENDPOINT_OTLP_GRPC_HOSTNAME:-ingress.eu-west-1.aws.dash0.com}"
+  DASH0_ENDPOINT_OTLP_GRPC_PORT="${DASH0_ENDPOINT_OTLP_GRPC_PORT:-4317}"
+
+  kubectl create secret generic dash0-secrets \
+    --from-literal=dash0-authorization-token="$DASH0_AUTH_TOKEN" \
+    --from-literal=dash0-grpc-hostname="$DASH0_ENDPOINT_OTLP_GRPC_HOSTNAME" \
+    --from-literal=dash0-grpc-port="$DASH0_ENDPOINT_OTLP_GRPC_PORT" \
+    --namespace=opentelemetry \
+    --dry-run=client -o yaml | kubectl apply -f -
+  echo "Secret 'dash0-secrets' created in opentelemetry namespace."
+else
+  echo "DASH0_AUTH_TOKEN not set, skipping Dash0 secrets. Only Jaeger will receive telemetry."
+fi
+echo ""
+
+# -------------------------------------------------------
+# 7. Install OpenTelemetry Collector
+# -------------------------------------------------------
+echo "--- Step 7: Installing OpenTelemetry Collector ---"
+helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts 2>/dev/null || true
+helm repo update
+if helm status otel-collector -n opentelemetry &>/dev/null; then
+  echo "OpenTelemetry Collector is already installed, skipping."
+else
+  helm install otel-collector open-telemetry/opentelemetry-collector \
+    --namespace opentelemetry \
+    -f "$PROJECT_ROOT/collector/config.yaml" \
+    --wait
+fi
+echo "OpenTelemetry Collector pods:"
+kubectl get pods -n opentelemetry -l app.kubernetes.io/name=opentelemetry-collector
+echo ""
+
+# -------------------------------------------------------
+# 8. Install cert-manager and OpenTelemetry Operator
+# -------------------------------------------------------
+echo "--- Step 8: Installing cert-manager ---"
+helm repo add jetstack https://charts.jetstack.io --force-update
+helm repo update
+if helm status cert-manager -n cert-manager &>/dev/null; then
+  echo "cert-manager is already installed, skipping."
+else
+  helm upgrade --install cert-manager jetstack/cert-manager \
+    --namespace cert-manager --create-namespace \
+    --set crds.enabled=true \
+    --wait
+fi
+echo "cert-manager pods:"
+kubectl get pods -n cert-manager
+echo ""
+
+echo "--- Step 8b: Installing OpenTelemetry Operator ---"
+if helm status opentelemetry-operator -n opentelemetry &>/dev/null; then
+  echo "OpenTelemetry Operator is already installed, skipping."
+else
+  helm upgrade --install opentelemetry-operator open-telemetry/opentelemetry-operator \
+    --namespace opentelemetry \
+    --set manager.extraArgs='{--enable-go-instrumentation}' \
+    --wait
+fi
+echo "OpenTelemetry Operator pods:"
+kubectl get pods -n opentelemetry -l app.kubernetes.io/name=opentelemetry-operator
+echo ""
+
+# -------------------------------------------------------
+# 9. Apply OpenTelemetry Instrumentation resource
+# -------------------------------------------------------
+echo "--- Step 9: Applying OpenTelemetry Instrumentation ---"
+kubectl apply -f "$PROJECT_ROOT/instrumentation/instrumentation.yaml"
+echo "Instrumentation resource applied."
+echo ""
+
+# -------------------------------------------------------
+# 10-14. Build, load images, and deploy
 # -------------------------------------------------------
 export CLUSTER_NAME
 "$SCRIPT_DIR/rebuild-and-deploy.sh"
@@ -85,6 +179,10 @@ export CLUSTER_NAME
 echo "Access the application with:"
 echo "  kubectl port-forward svc/store 8080:8080"
 echo "Then open http://localhost:8080"
+echo ""
+echo "To access Jaeger UI:"
+echo "  kubectl port-forward svc/jaeger-query 16686"
+echo "Then open http://localhost:16686"
 echo ""
 echo "To access PostgreSQL from outside the cluster:"
 echo "  kubectl port-forward svc/postgresql 5432:5432"
