@@ -37,9 +37,15 @@ public class StoreMgmtResource {
     @Produces(MediaType.APPLICATION_JSON)
     public PizzaOrderStatus processOrder(ProcessOrderRequest request) {
         log.info(request.toString());
-        return pizzaOrderWorkflowAgent.processPizzaOrder(request.orderId(),
-            Arrays.toString(request.orderItems().toArray()),
-            Arrays.toString(request.drinkItems().toArray()));
+      String pizzas = "";
+      if (request.orderItems() != null) {
+        pizzas = Arrays.toString(request.orderItems().toArray());
+      }
+      String drinks = "";
+      if (request.drinkItems() != null) {
+        Arrays.toString(request.drinkItems().toArray());
+      }
+      return pizzaOrderWorkflowAgent.processPizzaOrder(request.orderId(), pizzas, drinks);
     }
 
 
