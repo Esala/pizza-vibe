@@ -17,6 +17,7 @@ spec:
         dapr.io/enabled: "true"
         dapr.io/app-id: "store-mgmt-agent"
         dapr.io/app-port: "9999"
+        instrumentation.opentelemetry.io/inject-java: "opentelemetry/instrumentation"
     spec:
       containers:
         - name: store-mgmt-agent

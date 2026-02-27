@@ -77,7 +77,12 @@ echo "Secret 'anthropic-secret' created."
 echo ""
 
 # -------------------------------------------------------
-# 5-9. Build, load images, and deploy
+# 5. Install Observability stack
+# -------------------------------------------------------
+"$SCRIPT_DIR/setup-observability.sh"
+
+# -------------------------------------------------------
+# 6. Build, load images, and deploy
 # -------------------------------------------------------
 export CLUSTER_NAME
 "$SCRIPT_DIR/rebuild-and-deploy.sh"
@@ -85,6 +90,10 @@ export CLUSTER_NAME
 echo "Access the application with:"
 echo "  kubectl port-forward svc/store 8080:8080"
 echo "Then open http://localhost:8080"
+echo ""
+echo "To access Jaeger UI:"
+echo "  kubectl port-forward svc/jaeger-query 16686"
+echo "Then open http://localhost:16686"
 echo ""
 echo "To access PostgreSQL from outside the cluster:"
 echo "  kubectl port-forward svc/postgresql 5432:5432"
