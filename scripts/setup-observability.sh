@@ -32,11 +32,13 @@ kubectl create namespace opentelemetry --dry-run=client -o yaml | kubectl apply 
 if [ -n "${DASH0_AUTH_TOKEN:-}" ]; then
   DASH0_ENDPOINT_OTLP_GRPC_HOSTNAME="${DASH0_ENDPOINT_OTLP_GRPC_HOSTNAME:-ingress.eu-west-1.aws.dash0.com}"
   DASH0_ENDPOINT_OTLP_GRPC_PORT="${DASH0_ENDPOINT_OTLP_GRPC_PORT:-4317}"
+  DASH0_DATASET="${DASH0_DATASET:-default}"
 
   kubectl create secret generic dash0-secrets \
     --from-literal=dash0-authorization-token="$DASH0_AUTH_TOKEN" \
     --from-literal=dash0-grpc-hostname="$DASH0_ENDPOINT_OTLP_GRPC_HOSTNAME" \
     --from-literal=dash0-grpc-port="$DASH0_ENDPOINT_OTLP_GRPC_PORT" \
+    --from-literal=dash0-dataset="$DASH0_DATASET" \
     --namespace=opentelemetry \
     --dry-run=client -o yaml | kubectl apply -f -
   echo "Dash0 secrets created. Collector will export to both Jaeger and Dash0."
