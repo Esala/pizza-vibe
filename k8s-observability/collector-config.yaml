@@ -23,6 +23,11 @@ extraEnvs:
       secretKeyRef:
         name: dash0-secrets
         key: dash0-grpc-port
+  - name: DASH0_DATASET
+    valueFrom:
+      secretKeyRef:
+        name: dash0-secrets
+        key: dash0-dataset
 
 config:
   receivers:
@@ -48,6 +53,7 @@ config:
       endpoint: ${DASH0_ENDPOINT_OTLP_GRPC_HOSTNAME}:${DASH0_ENDPOINT_OTLP_GRPC_PORT}
       headers:
         Authorization: Bearer ${DASH0_AUTH_TOKEN}
+        Dash0-Dataset: ${DASH0_DATASET}
       tls:
         insecure: false
 
