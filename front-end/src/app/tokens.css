@@ -43,6 +43,8 @@
   --color-background-secondary-default: #b82508;
   --color-background-tertiary-default: #f2d96b;
   --color-background-inverted-default: #0c0d0d;
+  --color-background-inverted-subtle: #3b4943;
+  --color-background-disabled: #d0d9d5;
 
   /* Colors - Border */
   --color-border-default: #0c0d0d;
@@ -67,7 +69,10 @@
   --space-spacing-m: 16px;
   --space-spacing-l: 24px;
   --space-spacing-xl: 32px;
-  --space-spacing-xxl: 40px;
+  --space-spacing-xl-2: 40px;
+  --space-spacing-xl-3: 80px;
+  --space-spacing-xl-4: 120px;
+  --space-spacing-xl-5: 200px;
 
   /* Corners (Border Radius) */
   --corner-s: 8px;

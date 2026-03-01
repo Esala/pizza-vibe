@@ -22,7 +22,7 @@
   - URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=97-18
 - **Palette frame** (`97:189`): Semantic token assignments (source of truth for token values)
   - URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=97-189
-  - Backgrounds (`97:190`): default, subtle, primary, secondary, tertiary, inverted, inverted/subtle
+  - Backgrounds (`97:190`): default, subtle, disabled, primary, secondary, tertiary, inverted, inverted/subtle
   - Border (`98:13`): default, subtle
   - Text (`98:3`): default, subtle, primary, secondary, tertiary, inverted
 
@@ -43,7 +43,7 @@
 
 ### Spacing Scale (node: `102:100`)
 - URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=102-100
-- Tokens: s, m, l, xl, xxl
+- Tokens: s (8px), m (16px), l (24px), xl (32px), xl-2 (40px), xl-3 (80px), xl-4 (120px), xl-5 (200px)
 
 ### Corners (node: `127:20`)
 - URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=127-20
@@ -51,11 +51,13 @@
 
 ## Components
 
-### Logo (page: `107:147`, component: `107:201`)
+### Logo (page: `107:147`, component set: `187:71`)
 - Page URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=107-147
-- Component URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=107-201
-- Pizza icon + "PIZZAVIBE" text (Knewave font, bold italic), 375×62
-- No variants
+- Variants:
+  - `Type=Default` (`107:201`): Pizza icon + "PIZZAVIBE" text (Knewave font), 375×62
+  - `Type=Isotype` (`187:72`): Pizza icon only, 62×62
+- Layout: flex row, gap `--space-spacing-l`
+- Extra (non-Figma): `size="small"` ~50% scale, used in Footer
 
 ### Header (page: `111:303`)
 - Page URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=111-303

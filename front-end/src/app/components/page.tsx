@@ -36,6 +36,14 @@ export default function ComponentsShowcase() {
         </div>
       </section>
 
+      {/* Logo (Isotype) */}
+      <section>
+        <h2>Logo (Isotype)</h2>
+        <div style={{ marginTop: '16px', padding: '20px', border: '1px solid #ccc', borderRadius: '8px' }}>
+          <Logo type="isotype" />
+        </div>
+      </section>
+
       {/* Header */}
       <section>
         <h2>Header</h2>
