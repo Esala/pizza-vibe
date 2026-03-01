@@ -1,0 +1,16 @@
+.page {
+  display: flex;
+  height: 100vh;
+  margin: 0 calc(-1 * var(--space-margin));
+}
+
+.chatWrapper {
+  width: 600px;
+  flex-shrink: 0;
+  height: 100%;
+}
+
+.placeholder {
+  flex: 1;
+  height: 100%;
+}
