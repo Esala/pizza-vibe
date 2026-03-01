@@ -2,6 +2,7 @@ package bikes
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -141,8 +142,8 @@ func (s *BikeService) HandleReserveBike(w http.ResponseWriter, r *http.Request) 
 
 	slog.Info("bike reserved", "bikeId", bikeID, "user", req.User, "orderId", req.OrderID)
 
-	// Start auto-release goroutine
-	go s.autoRelease(bikeID, req.User)
+	// Start auto-release goroutine (preserve trace context but detach cancellation)
+	go s.autoRelease(context.WithoutCancel(r.Context()), bikeID, req.User)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(bike); err != nil {
@@ -152,7 +153,7 @@ func (s *BikeService) HandleReserveBike(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-func (s *BikeService) autoRelease(bikeID string, user string) {
+func (s *BikeService) autoRelease(ctx context.Context, bikeID string, user string) {
 	duration := s.releaseDuration()
 	slog.Info("auto-release scheduled", "bikeId", bikeID, "duration", duration)
 
@@ -164,7 +165,7 @@ func (s *BikeService) autoRelease(bikeID string, user string) {
 	}
 	s.mu.RUnlock()
 
-	s.sendOrderMessageEvent(orderID, bikeID, "DELIVERING", "preparing to deliver")
+	s.sendOrderMessageEvent(ctx, orderID, bikeID, "DELIVERING", "preparing to deliver")
 	eventInterval := duration / 4
 	steps := 4
 	for i := 1; i <= steps; i++ {
@@ -181,7 +182,7 @@ func (s *BikeService) autoRelease(bikeID string, user string) {
 				Timestamp: time.Now(),
 			})
 		}
-		s.sendProgressToStore(orderID, bikeID, progress)
+		s.sendProgressToStore(ctx, orderID, bikeID, progress)
 		slog.Info("bike on route", "bikeId", bikeID, "user", user, "progress", progress)
 	}
 
@@ -195,11 +196,11 @@ func (s *BikeService) autoRelease(bikeID string, user string) {
 		slog.Info("bike auto-released", "bikeId", bikeID)
 	}
 	s.mu.Unlock()
-	s.sendOrderMessageEvent(orderID, bikeID, "DELIVERED", "order delivered")
+	s.sendOrderMessageEvent(ctx, orderID, bikeID, "DELIVERED", "order delivered")
 }
 
 // sendProgressToStore sends a bike progress event to the store service /events endpoint.
-func (s *BikeService) sendProgressToStore(orderID, bikeID string, progress int) {
+func (s *BikeService) sendProgressToStore(ctx context.Context, orderID, bikeID string, progress int) {
 	if s.storeURL == "" {
 		return
 	}
@@ -214,7 +215,13 @@ func (s *BikeService) sendProgressToStore(orderID, bikeID string, progress int) 
 		slog.Error("failed to marshal bike progress", "error", err)
 		return
 	}
-	resp, err := s.httpClient.Post(s.storeURL+"/events", "application/json", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.storeURL+"/events", bytes.NewReader(body))
+	if err != nil {
+		slog.Error("failed to create progress request", "error", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		slog.Warn("failed to send progress to store", "bikeId", bikeID, "error", err)
 		return
@@ -222,8 +229,8 @@ func (s *BikeService) sendProgressToStore(orderID, bikeID string, progress int) 
 	defer resp.Body.Close()
 }
 
-// sendOrderDeliveredEvent sends an event to the store when the order is delivered.
-func (s *BikeService) sendOrderMessageEvent(orderID, bikeID string, status string, message string) {
+// sendOrderMessageEvent sends an event to the store when the order status changes.
+func (s *BikeService) sendOrderMessageEvent(ctx context.Context, orderID, bikeID string, status string, message string) {
 	if s.storeURL == "" {
 		return
 	}
@@ -238,7 +245,13 @@ func (s *BikeService) sendOrderMessageEvent(orderID, bikeID string, status strin
 		slog.Error("failed to marshal bike progress", "error", err)
 		return
 	}
-	resp, err := s.httpClient.Post(s.storeURL+"/events", "application/json", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.storeURL+"/events", bytes.NewReader(body))
+	if err != nil {
+		slog.Error("failed to create event request", "error", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		slog.Warn("failed to send progress to store", "bikeId", bikeID, "error", err)
 		return
