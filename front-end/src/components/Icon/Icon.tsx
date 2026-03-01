@@ -19,6 +19,12 @@ const icons = {
     height: 20,
     path: 'M16 4H20V8H17.5L16 20H4L2.5 8H0V4H4V0H16V4Z',
   },
+  send: {
+    viewBox: '0 0 24.8281 22.8291',
+    width: 24.8281,
+    height: 22.8291,
+    path: 'M24.8281 11L12.999 22.8291L10.1709 20L17.1426 13.0283H0V9.02832H17.1992L11 2.82812L13.8281 0L24.8281 11Z',
+  },
 } as const;
 
 export type IconName = keyof typeof icons;

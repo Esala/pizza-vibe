@@ -79,4 +79,9 @@
   --corner-m: 16px;
   --corner-l: 24px;
   --corner-xl: 40px;
+
+  /* Shadows */
+  --shadow-level-1: rgba(12, 13, 13, 0.2);
+  --shadow-level-1-y: 16px;
+  --shadow-level-1-blur: 4px;
 }

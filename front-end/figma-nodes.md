@@ -170,6 +170,30 @@
 - No variants
 - No new tokens
 
+### Chat Components (page: `191:229`)
+- Page URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=191-229
+- **Chat** (component: `192:101`): Full chat container — header + scrollable content + pinned input
+  - bg `--color-background-primary-default`
+  - **Chat Header** (`192:83`): flex row, gap `--space-spacing-l`, padding `--space-padding`, border-bottom `--border-width-thick` `--color-border-default`
+    - Logo (Isotype) + title (H2, `--color-text-default`) + subtitle (body/small, `--color-text-subtle`)
+  - **Chat Content** (`192:131`): flex column, gap `--space-spacing-xl`, padding `--space-padding`, overflow-y scroll
+  - **Chat Input Area** (`192:143`): padding `--space-padding`, contains ChatInput full width
+- **ChatInput** (component set: `192:235`): full-width pill input + send button
+  - Height: 88px, border-radius `--corner-xl`, padding left `--space-padding`, right/vertical `--space-spacing-l`
+  - Box shadow: `0 --shadow-level-1-y --shadow-level-1-blur 0 --shadow-level-1`
+  - States: Default (`192:234`), Hover (`192:236`), Active (`192:242`), Disabled (`192:247`)
+  - Default/Hover/Active: border `--border-width-thick` `--color-border-default` + shadow; Default bg `--color-background-disabled`; Hover+Active bg `--color-background-default`
+  - Disabled: bg `--color-background-disabled`, no border, no shadow, text `--color-text-disabled`
+- **MessageTurn** (component set: `192:293`): group of consecutive messages from one sender
+  - flex column, gap `--space-spacing-m`, width 100%
+  - `Type=Bot` (`192:292`): items-start, padding-right `--space-padding`
+  - `Type=User` (`192:294`): items-end, padding-left `--space-padding`
+- **Message** (component set: `192:282`): single chat bubble
+  - inline-flex, padding `--space-spacing-l`, border-radius `--corner-xl`
+  - `Type=Bot` (`192:281`): bg `--color-background-default`, text `--color-text-default`
+  - `Type=User` (`192:283`): bg `--color-background-inverted-default`, text `--color-text-inverted-default`
+- New tokens: `--shadow-level-1` (rgba(12,13,13,0.2)), `--shadow-level-1-y` (16px), `--shadow-level-1-blur` (4px)
+
 ### EmptyBlock (page: `116:251`, component: `117:433`)
 - Page URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=116-251
 - Component URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=117-433

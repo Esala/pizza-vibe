@@ -12,6 +12,8 @@
   font-size: var(--type-heading-h3-font-size);
   font-weight: var(--type-heading-h3-font-weight);
   line-height: var(--type-heading-h3-line-height);
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
   text-align: center;
   min-width: var(--space-spacing-l);
   color: var(--color-text-default);
