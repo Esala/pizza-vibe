@@ -90,8 +90,8 @@ func (s *Store) HandleCreateOrder(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("order created", "orderId", order.OrderID, "items", len(order.OrderItems))
 
-	// Send order to the store management agent (background; detach from request context)
-	go s.callStoreMgmtAgent(context.Background(), order)
+	// Send order to the store management agent (background; preserve trace context but detach cancellation)
+	go s.callStoreMgmtAgent(context.WithoutCancel(r.Context()), order)
 
 	// Return the created order
 	w.Header().Set("Content-Type", "application/json")

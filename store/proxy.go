@@ -31,7 +31,13 @@ func ServiceProxy(targetURL string) http.Handler {
 // to []{"item": string, "quantity": int}.
 func InventoryListHandler(inventoryURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		resp, err := http.Get(inventoryURL + "/inventory")
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, inventoryURL+"/inventory", nil)
+		if err != nil {
+			slog.Error("failed to create inventory request", "error", err)
+			http.Error(w, "failed to fetch inventory", http.StatusInternalServerError)
+			return
+		}
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			slog.Error("failed to fetch inventory", "error", err)
 			http.Error(w, "failed to fetch inventory", http.StatusBadGateway)
@@ -71,7 +77,13 @@ func InventoryListHandler(inventoryURL string) http.HandlerFunc {
 // to []{"item": string, "quantity": int}.
 func DrinksStockListHandler(drinksStockURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		resp, err := http.Get(drinksStockURL + "/drinks-stock")
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, drinksStockURL+"/drinks-stock", nil)
+		if err != nil {
+			slog.Error("failed to create drinks stock request", "error", err)
+			http.Error(w, "failed to fetch drinks stock", http.StatusInternalServerError)
+			return
+		}
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			slog.Error("failed to fetch drinks stock", "error", err)
 			http.Error(w, "failed to fetch drinks stock", http.StatusBadGateway)
