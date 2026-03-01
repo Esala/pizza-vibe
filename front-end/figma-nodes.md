@@ -124,12 +124,17 @@
 ### Icons (page: `116:281`, frame: `117:470`)
 - Page URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=116-281
 - Frame URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=117-470
-- Container size: `--space-spacing-xxl` (40px)
+- Container size: `--space-spacing-xl-2` (40px)
 - Fill color: `--color-text-default` (#0c0d0d)
 - Icons:
   - `Icon/minus` (`117:477`): horizontal bar, viewBox 24×4
   - `Icon/add` (`117:476`): plus sign, viewBox 24×24
   - `Icon/delete` (`117:557`): trash can, viewBox 20×20
+  - `Icon/send` (`189:227`): arrow right, viewBox 24.8281×22.8291
+  - `Icon/check` (`189:226`): checkmark, viewBox 26.8701×19.7988
+  - `Icon/order` (`189:225`): order/bookmark, viewBox 24×25 (evenodd)
+  - `Icon/kitchen` (`189:224`): kitchen/grid, viewBox 24×24 (3 paths)
+  - `Icon/delivery` (`189:223`): shopping bag, viewBox 28.1172×30 (evenodd)
 - No variants
 - No new tokens
 

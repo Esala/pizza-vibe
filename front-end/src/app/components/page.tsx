@@ -94,6 +94,10 @@ export default function ComponentsShowcase() {
           <Icon name="add" />
           <Icon name="delete" />
           <Icon name="send" />
+          <Icon name="check" />
+          <Icon name="order" />
+          <Icon name="kitchen" />
+          <Icon name="delivery" />
         </div>
       </section>
 
