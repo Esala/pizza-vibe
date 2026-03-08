@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "./tokens.css";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
 import { OrderProvider } from "@/context/OrderContext";
