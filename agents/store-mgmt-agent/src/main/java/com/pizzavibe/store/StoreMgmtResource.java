@@ -43,7 +43,7 @@ public class StoreMgmtResource {
       }
       String drinks = "";
       if (request.drinkItems() != null) {
-        Arrays.toString(request.drinkItems().toArray());
+        drinks = Arrays.toString(request.drinkItems().toArray());
       }
       return pizzaOrderWorkflowAgent.processPizzaOrder(request.orderId(), pizzas, drinks);
     }

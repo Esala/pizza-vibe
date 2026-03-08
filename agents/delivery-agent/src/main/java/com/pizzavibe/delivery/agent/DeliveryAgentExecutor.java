@@ -2,9 +2,8 @@ package com.pizzavibe.delivery.agent;
 
 import io.a2a.server.agentexecution.AgentExecutor;
 import io.a2a.server.agentexecution.RequestContext;
-import io.a2a.server.events.EventQueue;
-import io.a2a.server.tasks.TaskUpdater;
-import io.a2a.spec.JSONRPCError;
+import io.a2a.server.tasks.AgentEmitter;
+import io.a2a.spec.A2AError;
 import io.a2a.spec.Message;
 import io.a2a.spec.Part;
 import io.a2a.spec.TextPart;
@@ -30,50 +29,49 @@ public class DeliveryAgentExecutor {
     public AgentExecutor agentExecutor(DeliveryAgent deliveryAgent) {
         return new AgentExecutor() {
             @Override
-            public void execute(RequestContext context, EventQueue eventQueue) throws JSONRPCError {
+            public void execute(RequestContext context, AgentEmitter emitter) throws A2AError {
                 System.out.println("🚴 ========================================");
                 System.out.println("🚴 REMOTE A2A Delivery AGENT CALLED!");
                 System.out.println("🚴 ========================================");
 
-                TaskUpdater updater = new TaskUpdater(context, eventQueue);
                 if (context.getTask() == null) {
-                    updater.submit();
+                    emitter.submit();
                 }
-                updater.startWork();
+                emitter.startWork();
 
                 List<String> inputs = new ArrayList<>();
-                
+
                 // Process the request message
                 Message message = context.getMessage();
-                System.out.println("📨 Processing message with " + (message.getParts() != null ? message.getParts().size() : 0) + " parts");
-                if (message.getParts() != null) {
-                    for (Part<?> part : message.getParts()) {
+                System.out.println("📨 Processing message with " + (message.parts() != null ? message.parts().size() : 0) + " parts");
+                if (message.parts() != null) {
+                    for (Part<?> part : message.parts()) {
                         if (part instanceof TextPart textPart) {
-                            System.out.println("💬 Text part: " + textPart.getText());
-                            inputs.add(textPart.getText());
+                            System.out.println("💬 Text part: " + textPart.text());
+                            inputs.add(textPart.text());
                         }
                     }
                 }
-            
-                System.out.println("📋 Calling CookingAgent with " + inputs.size() + " parameters:");
+
+                System.out.println("📋 Calling DeliveryAgent with " + inputs.size() + " parameters:");
                 System.out.println("   - orderId: " + inputs.get(0));
-                
+
                 // Call the agent with all parameters
                 String agentResponse = deliveryAgent.deliverOrder(
                         inputs.get(0));                     // delivery request
-                
+
                 System.out.println("✅ DeliveryAgent response: " + agentResponse);
                 System.out.println("🚴 ========================================");
-                
+
                 // Return the result
                 TextPart responsePart = new TextPart(agentResponse, null);
                 List<Part<?>> parts = List.of(responsePart);
-                updater.addArtifact(parts, null, null, null);
-                updater.complete();
+                emitter.addArtifact(parts, null, null, null);
+                emitter.complete();
             }
 
             @Override
-            public void cancel(RequestContext context, EventQueue eventQueue) throws JSONRPCError {
+            public void cancel(RequestContext context, AgentEmitter emitter) throws A2AError {
                 throw new UnsupportedOperationError();
             }
         };

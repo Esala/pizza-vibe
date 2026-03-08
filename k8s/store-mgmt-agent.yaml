@@ -17,6 +17,7 @@ spec:
         dapr.io/enabled: "true"
         dapr.io/app-id: "store-mgmt-agent"
         dapr.io/app-port: "9999"
+        dapr.io/log-level: "debug"
         dapr.io/config: "tracing"
         dapr.io/env: "OTEL_SERVICE_NAME=store-mgmt-agent-daprd"
         instrumentation.opentelemetry.io/inject-java: "opentelemetry/instrumentation"
@@ -39,6 +40,10 @@ spec:
               value: "http://cooking-agent:8087"
             - name: DELIVERY_AGENT_URL
               value: "http://delivery-agent:8089"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector-opentelemetry-collector.opentelemetry.svc.cluster.local:4317"
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: grpc
           livenessProbe:
             httpGet:
               path: /q/health

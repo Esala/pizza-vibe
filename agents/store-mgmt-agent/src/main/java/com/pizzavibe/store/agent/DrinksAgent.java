@@ -1,13 +1,10 @@
 package com.pizzavibe.store.agent;
 
-import com.pizzavibe.store.model.DrinkItem;
 import dev.langchain4j.agentic.Agent;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
 import io.quarkiverse.langchain4j.mcp.runtime.McpToolBox;
-
-import java.util.List;
 
 public interface DrinksAgent {
   @SystemMessage("""

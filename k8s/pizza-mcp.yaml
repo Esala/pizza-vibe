@@ -31,8 +31,10 @@ spec:
               value: "http://store:8080"
             - name: DRINKS_STOCK_SERVICE_URL
               value: "http://drinks-stock:8090"
-            - name: OTEL_JAVAAGENT_ENABLED
-              value: "false"
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: grpc
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector-opentelemetry-collector.opentelemetry.svc.cluster.local:4317"
           livenessProbe:
             httpGet:
               path: /q/health

@@ -17,27 +17,23 @@ public class DeliveryAgentCard {
     @Produces
     @PublicAgentCard
     public AgentCard agentCard() {
-        return new AgentCard.Builder()
+        return AgentCard.builder()
                 .name("Delivery Agent")
                 .description("Delivery orders using the bikes skill.")
-                .url("http://delivery-agent:8089/")
                 .version("1.0.0")
-                .protocolVersion("1.0.0")
-                .capabilities(new AgentCapabilities.Builder()
+                .capabilities(AgentCapabilities.builder()
                         .streaming(true)
                         .pushNotifications(false)
-                        .stateTransitionHistory(false)
                         .build())
                 .defaultInputModes(List.of("text"))
                 .defaultOutputModes(List.of("text"))
-                .skills(List.of(new AgentSkill.Builder()
-                                .id("cooking")
-                                .name("Cooking agent")
-                                .description("Cooks pizza using the inventory and oven services via MCP.")
-                                .tags(List.of("cook", "pizza"))
+                .skills(List.of(AgentSkill.builder()
+                                .id("delivery")
+                                .name("Delivery agent")
+                                .description("Delivers orders using the bikes skill.")
+                                .tags(List.of("deliver", "pizza"))
                                 .build()))
-                .preferredTransport(TransportProtocol.JSONRPC.asString())
-                .additionalInterfaces(List.of(
+                .supportedInterfaces(List.of(
                         new AgentInterface(TransportProtocol.JSONRPC.asString(), "http://delivery-agent:8089/")))
                 .build();
     }

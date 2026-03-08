@@ -27,6 +27,10 @@ public interface CoordinateKitchenWorkflow {
     if (cookingFailed || drinksFailed) {
       status = KitchenStatus.FAILED;
     }
+
+    System.out.println(">>>>>> Coordinate Kitchen Status: " + status);
+    System.out.println("Drinks Report: " + drinksReport);
+    System.out.println("Cooking Report: " + cookingReport);
     return new KitchenOrderStatus(status, cookingReport, drinksReport);
   }
 

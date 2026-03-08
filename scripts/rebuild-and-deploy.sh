@@ -13,8 +13,39 @@ echo "Project root: $PROJECT_ROOT"
 echo "KIND cluster: $CLUSTER_NAME"
 echo ""
 
+
 # -------------------------------------------------------
-# 1. Clone and build quarkus-agentic-dapr dependency
+# 1. Clone and build a2a-java dependency
+# -------------------------------------------------------
+echo "--- Building a2a-java dependency ---"
+A2A_JAVA_DIR="$PROJECT_ROOT/.deps/a2a-java"
+if [ -d "$A2A_JAVA_DIR" ]; then
+  echo "a2a-java already cloned, pulling latest changes..."
+  (cd "$A2A_JAVA_DIR" && git pull)
+else
+  mkdir -p "$PROJECT_ROOT/.deps"
+  git clone https://github.com/salaboy/a2a-java "$A2A_JAVA_DIR"
+fi
+(cd "$A2A_JAVA_DIR" && mvn clean install -DskipTests)
+echo ""
+
+# -------------------------------------------------------
+# 2. Clone and build langchain4j-patched dependency
+# -------------------------------------------------------
+echo "--- Building langchain4j dependency ---"
+LANGCHAIN4J_DIR="$PROJECT_ROOT/.deps/langchain4j"
+if [ -d "$LANGCHAIN4J_DIR" ]; then
+  echo "langchain4j already cloned, pulling latest changes..."
+  (cd "$LANGCHAIN4J_DIR" && git pull)
+else
+  mkdir -p "$PROJECT_ROOT/.deps"
+  git clone -b 1.11.0-beta19-patched https://github.com/salaboy/langchain4j "$LANGCHAIN4J_DIR"
+fi
+(cd "$LANGCHAIN4J_DIR" && mvn clean install -DskipTests)
+echo ""
+
+# -------------------------------------------------------
+# 3. Clone and build quarkus-agentic-dapr dependency
 # -------------------------------------------------------
 echo "--- Building quarkus-agentic-dapr dependency ---"
 AGENTIC_DAPR_DIR="$PROJECT_ROOT/.deps/quarkus-agentic-dapr"

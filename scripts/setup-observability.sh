@@ -32,7 +32,7 @@ kubectl create namespace opentelemetry --dry-run=client -o yaml | kubectl apply 
 if [ -n "${DASH0_AUTH_TOKEN:-}" ]; then
   DASH0_ENDPOINT_OTLP_GRPC_HOSTNAME="${DASH0_ENDPOINT_OTLP_GRPC_HOSTNAME:-ingress.eu-west-1.aws.dash0.com}"
   DASH0_ENDPOINT_OTLP_GRPC_PORT="${DASH0_ENDPOINT_OTLP_GRPC_PORT:-4317}"
-  DASH0_DATASET="${DASH0_DATASET:-default}"
+  DASH0_DATASET="${DASH0_DATASET:-salaboy}"
 
   kubectl create secret generic dash0-secrets \
     --from-literal=dash0-authorization-token="$DASH0_AUTH_TOKEN" \
@@ -111,6 +111,11 @@ echo ""
 echo "--- Applying OpenTelemetry Instrumentation ---"
 kubectl apply -f "$OBSERVABILITY_DIR/instrumentation.yaml"
 echo "Instrumentation resource applied."
+echo ""
+
+echo "--- Applying Dapr Tracing Configuration ---"
+kubectl apply -f "$OBSERVABILITY_DIR/dapr-tracing.yaml"
+echo "Dapr Tracing Configuration applied."
 echo ""
 
 echo "=== Observability setup complete ==="

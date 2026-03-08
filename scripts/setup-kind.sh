@@ -42,7 +42,7 @@ helm repo update
 if helm status dapr -n dapr-system &>/dev/null; then
   echo "Dapr is already installed, skipping."
 else
-  helm install dapr dapr/dapr --namespace dapr-system --create-namespace --wait
+  helm install dapr dapr/dapr --namespace dapr-system --version=1.17.0 --create-namespace --wait
 fi
 echo "Dapr pods:"
 kubectl get pods -n dapr-system
