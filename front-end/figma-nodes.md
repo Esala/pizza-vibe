@@ -22,7 +22,7 @@
   - URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=97-18
 - **Palette frame** (`97:189`): Semantic token assignments (source of truth for token values)
   - URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=97-189
-  - Backgrounds (`97:190`): default, subtle, primary, secondary, tertiary, inverted, inverted/subtle
+  - Backgrounds (`97:190`): default, subtle, disabled, primary, secondary, tertiary, inverted, inverted/subtle
   - Border (`98:13`): default, subtle
   - Text (`98:3`): default, subtle, primary, secondary, tertiary, inverted
 
@@ -43,7 +43,7 @@
 
 ### Spacing Scale (node: `102:100`)
 - URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=102-100
-- Tokens: s, m, l, xl, xxl
+- Tokens: s (8px), m (16px), l (24px), xl (32px), xl-2 (40px), xl-3 (80px), xl-4 (120px), xl-5 (200px)
 
 ### Corners (node: `127:20`)
 - URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=127-20
@@ -51,11 +51,13 @@
 
 ## Components
 
-### Logo (page: `107:147`, component: `107:201`)
+### Logo (page: `107:147`, component set: `187:71`)
 - Page URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=107-147
-- Component URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=107-201
-- Pizza icon + "PIZZAVIBE" text (Knewave font, bold italic), 375×62
-- No variants
+- Variants:
+  - `Type=Default` (`107:201`): Pizza icon + "PIZZAVIBE" text (Knewave font), 375×62
+  - `Type=Isotype` (`187:72`): Pizza icon only, 62×62
+- Layout: flex row, gap `--space-spacing-l`
+- Extra (non-Figma): `size="small"` ~50% scale, used in Footer
 
 ### Header (page: `111:303`)
 - Page URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=111-303
@@ -122,12 +124,17 @@
 ### Icons (page: `116:281`, frame: `117:470`)
 - Page URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=116-281
 - Frame URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=117-470
-- Container size: `--space-spacing-xxl` (40px)
+- Container size: `--space-spacing-xl-2` (40px)
 - Fill color: `--color-text-default` (#0c0d0d)
 - Icons:
   - `Icon/minus` (`117:477`): horizontal bar, viewBox 24×4
   - `Icon/add` (`117:476`): plus sign, viewBox 24×24
   - `Icon/delete` (`117:557`): trash can, viewBox 20×20
+  - `Icon/send` (`189:227`): arrow right, viewBox 24.8281×22.8291
+  - `Icon/check` (`189:226`): checkmark, viewBox 26.8701×19.7988
+  - `Icon/order` (`189:225`): order/bookmark, viewBox 24×25 (evenodd)
+  - `Icon/kitchen` (`189:224`): kitchen/grid, viewBox 24×24 (3 paths)
+  - `Icon/delivery` (`189:223`): shopping bag, viewBox 28.1172×30 (evenodd)
 - No variants
 - No new tokens
 
@@ -167,6 +174,30 @@
   - QuantitySelector (shrink-0): existing component with `deleteAtMin`
 - No variants
 - No new tokens
+
+### Chat Components (page: `191:229`)
+- Page URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=191-229
+- **Chat** (component: `192:101`): Full chat container — header + scrollable content + pinned input
+  - bg `--color-background-primary-default`
+  - **Chat Header** (`192:83`): flex row, gap `--space-spacing-l`, padding `--space-padding`, border-bottom `--border-width-thick` `--color-border-default`
+    - Logo (Isotype) + title (H2, `--color-text-default`) + subtitle (body/small, `--color-text-subtle`)
+  - **Chat Content** (`192:131`): flex column, gap `--space-spacing-xl`, padding `--space-padding`, overflow-y scroll
+  - **Chat Input Area** (`192:143`): padding `--space-padding`, contains ChatInput full width
+- **ChatInput** (component set: `192:235`): full-width pill input + send button
+  - Height: 88px, border-radius `--corner-xl`, padding left `--space-padding`, right/vertical `--space-spacing-l`
+  - Box shadow: `0 --shadow-level-1-y --shadow-level-1-blur 0 --shadow-level-1`
+  - States: Default (`192:234`), Hover (`192:236`), Active (`192:242`), Disabled (`192:247`)
+  - Default/Hover/Active: border `--border-width-thick` `--color-border-default` + shadow; Default bg `--color-background-disabled`; Hover+Active bg `--color-background-default`
+  - Disabled: bg `--color-background-disabled`, no border, no shadow, text `--color-text-disabled`
+- **MessageTurn** (component set: `192:293`): group of consecutive messages from one sender
+  - flex column, gap `--space-spacing-m`, width 100%
+  - `Type=Bot` (`192:292`): items-start, padding-right `--space-padding`
+  - `Type=User` (`192:294`): items-end, padding-left `--space-padding`
+- **Message** (component set: `192:282`): single chat bubble
+  - inline-flex, padding `--space-spacing-l`, border-radius `--corner-xl`
+  - `Type=Bot` (`192:281`): bg `--color-background-default`, text `--color-text-default`
+  - `Type=User` (`192:283`): bg `--color-background-inverted-default`, text `--color-text-inverted-default`
+- New tokens: `--shadow-level-1` (rgba(12,13,13,0.2)), `--shadow-level-1-y` (16px), `--shadow-level-1-blur` (4px)
 
 ### EmptyBlock (page: `116:251`, component: `117:433`)
 - Page URL: https://www.figma.com/design/Iia6bIqfQwSvXxTnfedTXj/PizzaVibe-UI-Kit?node-id=116-251

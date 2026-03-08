@@ -11,10 +11,27 @@ import QuantitySelector from '@/components/QuantitySelector';
 import CartItem from '@/components/CartItem';
 import EmptyBlock from '@/components/EmptyBlock';
 import PizzaItem from '@/components/PizzaItem';
+import Chat, { ChatMessage } from '@/components/Chat';
+import Message from '@/components/Chat/Message';
+import MessageTurn from '@/components/Chat/MessageTurn';
+import ChatInput from '@/components/Chat/ChatInput';
 
 export default function ComponentsShowcase() {
   const [qty1, setQty1] = useState(2);
   const [qty2, setQty2] = useState(2);
+  const [chatInput, setChatInput] = useState('');
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+    { id: '1', content: 'Welcome to Pizza Vibe! What kind of pizza are you in the mood for today?', type: 'bot' },
+    { id: '2', content: 'Following message from bot', type: 'bot' },
+    { id: '3', content: 'I want a Margherita!', type: 'user' },
+    { id: '4', content: 'Great choice! Adding a Margherita to your cart.', type: 'bot' },
+  ]);
+
+  const handleChatSubmit = () => {
+    if (!chatInput.trim()) return;
+    setChatMessages(prev => [...prev, { id: String(Date.now()), content: chatInput, type: 'user' }]);
+    setChatInput('');
+  };
 
   return (
     <div style={{ padding: '40px', display: 'flex', flexDirection: 'column', gap: '60px' }}>
@@ -33,6 +50,14 @@ export default function ComponentsShowcase() {
         <h2>Logo (Small)</h2>
         <div style={{ marginTop: '16px', padding: '20px', border: '1px solid #ccc', borderRadius: '8px' }}>
           <Logo size="small" />
+        </div>
+      </section>
+
+      {/* Logo (Isotype) */}
+      <section>
+        <h2>Logo (Isotype)</h2>
+        <div style={{ marginTop: '16px', padding: '20px', border: '1px solid #ccc', borderRadius: '8px' }}>
+          <Logo type="isotype" />
         </div>
       </section>
 
@@ -68,6 +93,11 @@ export default function ComponentsShowcase() {
           <Icon name="minus" />
           <Icon name="add" />
           <Icon name="delete" />
+          <Icon name="send" />
+          <Icon name="check" />
+          <Icon name="order" />
+          <Icon name="kitchen" />
+          <Icon name="delivery" />
         </div>
       </section>
 
@@ -150,6 +180,52 @@ export default function ComponentsShowcase() {
               { label: 'Tab Item', value: 'tab3' },
             ]}
             defaultValue="tab1"
+          />
+        </div>
+      </section>
+
+      {/* Message */}
+      <section>
+        <h2>Message</h2>
+        <div style={{ marginTop: '16px', padding: '20px', border: '1px solid #ccc', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '12px', background: '#08b869' }}>
+          <Message message="Welcome to Pizza Vibe! What kind of pizza are you in the mood for today?" type="bot" />
+          <Message message="I want a Margherita!" type="user" />
+        </div>
+      </section>
+
+      {/* MessageTurn */}
+      <section>
+        <h2>MessageTurn</h2>
+        <div style={{ marginTop: '16px', padding: '20px', border: '1px solid #ccc', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '20px', background: '#08b869' }}>
+          <MessageTurn
+            messages={['Welcome to Pizza Vibe!', 'What kind of pizza are you in the mood for today?']}
+            type="bot"
+          />
+          <MessageTurn
+            messages={['I want a Margherita!', 'Make it a large please.']}
+            type="user"
+          />
+        </div>
+      </section>
+
+      {/* ChatInput */}
+      <section>
+        <h2>ChatInput</h2>
+        <div style={{ marginTop: '16px', padding: '20px', border: '1px solid #ccc', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '16px', background: '#08b869' }}>
+          <ChatInput value={chatInput} onChange={setChatInput} onSubmit={handleChatSubmit} />
+          <ChatInput value="" onChange={() => {}} onSubmit={() => {}} disabled />
+        </div>
+      </section>
+
+      {/* Chat */}
+      <section>
+        <h2>Chat</h2>
+        <div style={{ marginTop: '16px', border: '1px solid #ccc', borderRadius: '8px', overflow: 'hidden', height: '600px' }}>
+          <Chat
+            messages={chatMessages}
+            inputValue={chatInput}
+            onInputChange={setChatInput}
+            onSubmit={handleChatSubmit}
           />
         </div>
       </section>
