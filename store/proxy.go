@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -66,6 +67,9 @@ func InventoryListHandler(inventoryURL string) http.HandlerFunc {
 		for k, v := range data {
 			result = append(result, item{Item: k, Quantity: v})
 		}
+		sort.Slice(result, func(i, j int) bool {
+			return result[i].Item < result[j].Item
+		})
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(result)
@@ -112,6 +116,9 @@ func DrinksStockListHandler(drinksStockURL string) http.HandlerFunc {
 		for k, v := range data {
 			result = append(result, item{Item: k, Quantity: v})
 		}
+		sort.Slice(result, func(i, j int) bool {
+			return result[i].Item < result[j].Item
+		})
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(result)

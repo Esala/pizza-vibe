@@ -15,6 +15,7 @@ export default function Navigation() {
     { href: '/bikes', label: 'Bikes' },
     { href: '/management', label: 'Management' },
     { href: '/chat', label: 'Orders (Chat)' },
+    { href: '/mgmt', label: 'Dashboard' },
   ];
 
   return (

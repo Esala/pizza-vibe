@@ -104,7 +104,7 @@ func main() {
 		api.Post("/inventory/{item}/add", proxyTo(inventoryURL, "/inventory"))
 
 		// Oven: all pass-through
-		api.Get("/oven", proxyTo(ovenURL, "/ovens/"))
+		api.Get("/oven", proxyToPath(ovenURL, "/ovens/"))
 		api.Post("/oven/{ovenId}", proxyToOven(ovenURL))
 		api.Delete("/oven/{ovenId}", proxyToOven(ovenURL))
 
@@ -159,6 +159,19 @@ func proxyTo(targetURL, basePath string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Rewrite path: /api/inventory/{item} → /inventory/{item}
 		r.URL.Path = strings.Replace(r.URL.Path, "/api", "", 1)
+		r.URL.Host = target.Host
+		r.URL.Scheme = target.Scheme
+		r.Host = target.Host
+		proxy.ServeHTTP(w, r)
+	}
+}
+
+// proxyToPath returns a handler that proxies the request to a fixed path on the target.
+func proxyToPath(targetURL, path string) http.HandlerFunc {
+	target, _ := url.Parse(targetURL)
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	return func(w http.ResponseWriter, r *http.Request) {
+		r.URL.Path = path
 		r.URL.Host = target.Host
 		r.URL.Scheme = target.Scheme
 		r.Host = target.Host

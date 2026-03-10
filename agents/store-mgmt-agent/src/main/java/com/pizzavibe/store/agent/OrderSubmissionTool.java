@@ -1,9 +1,12 @@
 package com.pizzavibe.store.agent;
 
+import com.pizzavibe.store.client.StoreMgmtClient;
 import com.pizzavibe.store.client.StoreServiceClient;
 import com.pizzavibe.store.client.StoreServiceClient.StoreOrderEvent;
+import com.pizzavibe.store.model.DrinkItem;
+import com.pizzavibe.store.model.OrderItem;
 import com.pizzavibe.store.model.PizzaOrderStatus;
-import com.pizzavibe.store.workflows.PizzaOrderWorkflow;
+import com.pizzavibe.store.model.ProcessOrderRequest;
 import dev.langchain4j.agent.tool.Tool;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -11,8 +14,12 @@ import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @ApplicationScoped
 public class OrderSubmissionTool {
@@ -20,7 +27,8 @@ public class OrderSubmissionTool {
     private static final Logger log = LoggerFactory.getLogger(OrderSubmissionTool.class);
 
     @Inject
-    PizzaOrderWorkflow pizzaOrderWorkflow;
+    @RestClient
+    StoreMgmtClient storeMgmtClient;
 
     @Inject
     @RestClient
@@ -35,10 +43,14 @@ public class OrderSubmissionTool {
         String orderId = UUID.randomUUID().toString();
         log.info("Submitting order {} asynchronously. Items: {}, Drinks: {}", orderId, orderItems, drinkItems);
 
+        List<OrderItem> parsedOrderItems = parseOrderItems(orderItems);
+        List<DrinkItem> parsedDrinkItems = parseDrinkItems(drinkItems);
+        ProcessOrderRequest request = new ProcessOrderRequest(orderId, parsedOrderItems, parsedDrinkItems);
+
         CompletableFuture.runAsync(() -> {
             try {
-                log.info("Processing order {} in background", orderId);
-                PizzaOrderStatus status = pizzaOrderWorkflow.processPizzaOrder(orderId, orderItems, drinkItems);
+                log.info("Processing order {} via HTTP call to /mgmt/processOrder", orderId);
+                PizzaOrderStatus status = storeMgmtClient.processOrder(request);
                 String message = "Order " + status.status()
                         + ". Kitchen: " + (status.kitchenReport() != null ? status.kitchenReport().status() : "N/A")
                         + ". Delivery: " + (status.deliveryReport() != null ? status.deliveryReport() : "N/A");
@@ -60,5 +72,31 @@ public class OrderSubmissionTool {
         } catch (Exception e) {
             log.warn("Failed to send event to store for orderId={}: {}", orderId, e.getMessage());
         }
+    }
+
+    private static final Pattern ORDER_ITEM_PATTERN =
+            Pattern.compile("pizzaType\\s*=\\s*([\\w]+).*?quantity\\s*=\\s*(\\d+)", Pattern.CASE_INSENSITIVE);
+
+    private static final Pattern DRINK_ITEM_PATTERN =
+            Pattern.compile("drinkType\\s*=\\s*([\\w]+).*?quantity\\s*=\\s*(\\d+)", Pattern.CASE_INSENSITIVE);
+
+    static List<OrderItem> parseOrderItems(String text) {
+        List<OrderItem> items = new ArrayList<>();
+        if (text == null || text.isBlank()) return items;
+        Matcher m = ORDER_ITEM_PATTERN.matcher(text);
+        while (m.find()) {
+            items.add(new OrderItem(m.group(1), Integer.parseInt(m.group(2))));
+        }
+        return items;
+    }
+
+    static List<DrinkItem> parseDrinkItems(String text) {
+        List<DrinkItem> items = new ArrayList<>();
+        if (text == null || text.isBlank()) return items;
+        Matcher m = DRINK_ITEM_PATTERN.matcher(text);
+        while (m.find()) {
+            items.add(new DrinkItem(m.group(1), Integer.parseInt(m.group(2))));
+        }
+        return items;
     }
 }

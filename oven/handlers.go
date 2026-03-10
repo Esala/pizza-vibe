@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"math/rand"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
@@ -114,6 +115,9 @@ func (s *OvenService) HandleGetAll(w http.ResponseWriter, r *http.Request) {
 	for _, oven := range s.ovens {
 		ovenList = append(ovenList, *oven)
 	}
+	sort.Slice(ovenList, func(i, j int) bool {
+		return ovenList[i].ID < ovenList[j].ID
+	})
 
 	slog.Info("getting all ovens", "count", len(ovenList))
 

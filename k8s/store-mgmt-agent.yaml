@@ -42,6 +42,8 @@ spec:
               value: "http://delivery-agent:8089"
             - name: STORE_SERVICE_URL
               value: "http://store:8080"
+            - name: STORE_MGMT_AGENT_URL
+              value: "http://store-mgmt-agent:9999"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://otel-collector-opentelemetry-collector.opentelemetry.svc.cluster.local:4317"
             - name: OTEL_EXPORTER_OTLP_PROTOCOL
