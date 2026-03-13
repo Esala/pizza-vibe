@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -192,6 +193,19 @@ func (s *Store) HandleEvent(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("order event received", "orderId", event.OrderID, "status", event.Status, "source", event.Source)
 
+	// Track a corresponding agent event for key order milestones so the agents page shows them.
+	if event.Status == "DELIVERED" {
+		agentEvent := AgentEvent{
+			AgentID:   "store-mgmt-agent",
+			Kind:      "response",
+			Text:      fmt.Sprintf("Order %s has been delivered! Enjoy your pizza!", event.OrderID),
+			Timestamp: FlexTimestamp{Time: time.Now().UTC()},
+		}
+		if err := s.repo.TrackAgentEvent(agentEvent); err != nil {
+			slog.Error("failed to track delivery agent event", "orderId", event.OrderID, "error", err)
+		}
+	}
+
 	// Always broadcast to WebSocket clients so the UI receives every progress event.
 	s.BroadcastOrderUpdate(OrderUpdate{
 		OrderID:   event.OrderID,
@@ -256,6 +270,85 @@ func (s *Store) HandleGetEvents(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(events)
+}
+
+// HandleAgentEvent handles POST /agents-events requests to receive events emitted by agents.
+func (s *Store) HandleAgentEvent(w http.ResponseWriter, r *http.Request) {
+	var event AgentEvent
+	if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
+		slog.Error("agent event: invalid JSON", "error", err)
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if event.AgentID == "" {
+		slog.Error("agent event: missing agentId", "event", event)
+		http.Error(w, "agentId is required", http.StatusBadRequest)
+		return
+	}
+
+	if event.Kind != "request" && event.Kind != "response" && event.Kind != "error" {
+		slog.Error("agent event: invalid kind", "kind", event.Kind, "agentId", event.AgentID)
+		http.Error(w, "kind must be one of: request, response, error", http.StatusBadRequest)
+		return
+	}
+
+	// Filter out ToolExecutionResultMessage events from langchain4j
+	if strings.Contains(event.Text, "ToolExecutionResultMessage") {
+		slog.Debug("agent event: filtered out ToolExecutionResultMessage", "agentId", event.AgentID)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if err := s.repo.TrackAgentEvent(event); err != nil {
+		slog.Error("failed to track agent event", "agentId", event.AgentID, "error", err)
+		http.Error(w, "Failed to store agent event", http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("agent event received", "agentId", event.AgentID, "kind", event.Kind)
+
+	w.WriteHeader(http.StatusOK)
+}
+
+// HandleGetAgentEvents handles GET /agents-events requests to retrieve agent events.
+// Supports optional agentId query parameter to filter by agent.
+// When no filter is provided, returns all agent events.
+func (s *Store) HandleGetAgentEvents(w http.ResponseWriter, r *http.Request) {
+	agentID := r.URL.Query().Get("agentId")
+
+	var events []AgentEvent
+	var err error
+
+	if agentID != "" {
+		events, err = s.repo.GetAgentEventsByAgentID(agentID)
+	} else {
+		events, err = s.repo.GetAllAgentEvents()
+	}
+
+	if err != nil {
+		slog.Error("failed to get agent events", "agentId", agentID, "error", err)
+		http.Error(w, "Failed to retrieve agent events", http.StatusInternalServerError)
+		return
+	}
+	if events == nil {
+		events = []AgentEvent{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(events)
+}
+
+// HandleDeleteAgentEvents handles DELETE /agents-events requests to clear all agent events.
+func (s *Store) HandleDeleteAgentEvents(w http.ResponseWriter, r *http.Request) {
+	if err := s.repo.DeleteAllAgentEvents(); err != nil {
+		slog.Error("failed to delete agent events", "error", err)
+		http.Error(w, "Failed to delete agent events", http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("all agent events deleted")
+	w.WriteHeader(http.StatusOK)
 }
 
 // HandleChat proxies chat messages to the store management agent's /mgmt/chat SSE endpoint

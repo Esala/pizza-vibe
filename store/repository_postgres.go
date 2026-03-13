@@ -149,3 +149,65 @@ func (p *PostgresRepository) GetOrderEvents(orderID uuid.UUID) ([]OrderEvent, er
 	}
 	return events, rows.Err()
 }
+
+func (p *PostgresRepository) TrackAgentEvent(event AgentEvent) error {
+	_, err := p.db.Exec(
+		`INSERT INTO agent_events (agent_id, kind, text, timestamp)
+		 VALUES ($1, $2, $3, $4)`,
+		event.AgentID, event.Kind, event.Text, event.Timestamp.Time,
+	)
+	if err != nil {
+		return fmt.Errorf("insert agent event: %w", err)
+	}
+	return nil
+}
+
+func (p *PostgresRepository) GetAgentEventsByAgentID(agentID string) ([]AgentEvent, error) {
+	rows, err := p.db.Query(
+		`SELECT agent_id, kind, text, timestamp
+		 FROM agent_events WHERE agent_id = $1 ORDER BY id ASC`, agentID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query agent events by agent: %w", err)
+	}
+	defer rows.Close()
+
+	var events []AgentEvent
+	for rows.Next() {
+		var e AgentEvent
+		if err := rows.Scan(&e.AgentID, &e.Kind, &e.Text, &e.Timestamp.Time); err != nil {
+			return nil, fmt.Errorf("scan agent event: %w", err)
+		}
+		events = append(events, e)
+	}
+	return events, rows.Err()
+}
+
+func (p *PostgresRepository) GetAllAgentEvents() ([]AgentEvent, error) {
+	rows, err := p.db.Query(
+		`SELECT agent_id, kind, text, timestamp
+		 FROM agent_events ORDER BY id ASC`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query all agent events: %w", err)
+	}
+	defer rows.Close()
+
+	var events []AgentEvent
+	for rows.Next() {
+		var e AgentEvent
+		if err := rows.Scan(&e.AgentID, &e.Kind, &e.Text, &e.Timestamp.Time); err != nil {
+			return nil, fmt.Errorf("scan agent event: %w", err)
+		}
+		events = append(events, e)
+	}
+	return events, rows.Err()
+}
+
+func (p *PostgresRepository) DeleteAllAgentEvents() error {
+	_, err := p.db.Exec(`DELETE FROM agent_events`)
+	if err != nil {
+		return fmt.Errorf("delete agent events: %w", err)
+	}
+	return nil
+}

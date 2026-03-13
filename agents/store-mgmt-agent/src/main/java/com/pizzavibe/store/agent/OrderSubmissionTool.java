@@ -1,8 +1,10 @@
 package com.pizzavibe.store.agent;
 
+import com.pizzavibe.store.client.AgentEventClient;
 import com.pizzavibe.store.client.StoreMgmtClient;
 import com.pizzavibe.store.client.StoreServiceClient;
 import com.pizzavibe.store.client.StoreServiceClient.StoreOrderEvent;
+import com.pizzavibe.store.model.AgentEvent;
 import com.pizzavibe.store.model.DrinkItem;
 import com.pizzavibe.store.model.OrderItem;
 import com.pizzavibe.store.model.PizzaOrderStatus;
@@ -25,6 +27,7 @@ import java.util.regex.Pattern;
 public class OrderSubmissionTool {
 
     private static final Logger log = LoggerFactory.getLogger(OrderSubmissionTool.class);
+    private static final String AGENT_ID = "store-mgmt-agent";
 
     @Inject
     @RestClient
@@ -33,6 +36,10 @@ public class OrderSubmissionTool {
     @Inject
     @RestClient
     StoreServiceClient storeServiceClient;
+
+    @Inject
+    @RestClient
+    AgentEventClient agentEventClient;
 
     @Tool("Submit a validated pizza order for processing. " +
           "Call this only when the customer has confirmed their order and stock has been validated. " +
@@ -55,10 +62,13 @@ public class OrderSubmissionTool {
                         + ". Kitchen: " + (status.kitchenReport() != null ? status.kitchenReport().status() : "N/A")
                         + ". Delivery: " + (status.deliveryReport() != null ? status.deliveryReport() : "N/A");
                 sendEventToStore(orderId, status.status().name(), message);
+                sendAgentEvent(AgentEvent.response(AGENT_ID, orderId, message));
                 log.info("Order {} processing completed with status {}", orderId, status.status());
             } catch (Exception e) {
                 log.error("Order {} processing failed", orderId, e);
-                sendEventToStore(orderId, "FAILED", "Order processing failed: " + e.getMessage());
+                String errorMessage = "Order processing failed: " + e.getMessage();
+                sendEventToStore(orderId, "FAILED", errorMessage);
+                sendAgentEvent(AgentEvent.error(AGENT_ID, orderId, errorMessage));
             }
         });
 
@@ -68,9 +78,17 @@ public class OrderSubmissionTool {
 
     private void sendEventToStore(String orderId, String status, String message) {
         try {
-            storeServiceClient.sendEvent(new StoreOrderEvent(orderId, status, "store-mgmt-agent", message));
+            storeServiceClient.sendEvent(new StoreOrderEvent(orderId, status, AGENT_ID, message));
         } catch (Exception e) {
             log.warn("Failed to send event to store for orderId={}: {}", orderId, e.getMessage());
+        }
+    }
+
+    private void sendAgentEvent(AgentEvent event) {
+        try {
+            agentEventClient.sendEvent(event);
+        } catch (Exception e) {
+            log.warn("Failed to send agent event for orderId={}: {}", event.orderId(), e.getMessage());
         }
     }
 

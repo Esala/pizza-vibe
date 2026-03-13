@@ -1,6 +1,7 @@
 package com.pizzavibe.store;
 
 import com.pizzavibe.store.agent.ChatAgent;
+import com.pizzavibe.store.listener.AgentContext;
 import com.pizzavibe.store.model.ChatMessage;
 import io.smallrye.mutiny.Multi;
 import jakarta.inject.Inject;
@@ -21,12 +22,16 @@ public class ChatResource {
     @Inject
     ChatAgent chatAgent;
 
+    @Inject
+    AgentContext agentContext;
+
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.SERVER_SENT_EVENTS)
     @RestStreamElementType(MediaType.TEXT_PLAIN)
     public Multi<String> chat(ChatMessage message) {
         log.info("Chat message received: sessionId={}, message={}", message.sessionId(), message.message());
+        agentContext.setAgentName("chat-agent");
         return chatAgent.chat(message.sessionId(), message.message());
     }
 }

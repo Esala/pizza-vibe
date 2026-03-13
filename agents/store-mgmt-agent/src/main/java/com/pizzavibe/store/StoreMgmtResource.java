@@ -1,5 +1,6 @@
 package com.pizzavibe.store;
 
+import com.pizzavibe.store.listener.AgentContext;
 import com.pizzavibe.store.model.DrinkItem;
 import com.pizzavibe.store.model.OrderItem;
 import com.pizzavibe.store.model.PizzaOrderStatus;
@@ -25,6 +26,9 @@ public class StoreMgmtResource {
   @Inject
     PizzaOrderWorkflow pizzaOrderWorkflowAgent;
 
+  @Inject
+    AgentContext agentContext;
+
     @GET
     @Produces(MediaType.TEXT_PLAIN)
     public String hello() {
@@ -37,6 +41,8 @@ public class StoreMgmtResource {
     @Produces(MediaType.APPLICATION_JSON)
     public PizzaOrderStatus processOrder(ProcessOrderRequest request) {
         log.info(request.toString());
+      agentContext.setOrderId(request.orderId());
+      agentContext.setAgentName("pizza-order-workflow");
       String pizzas = "";
       if (request.orderItems() != null) {
         pizzas = Arrays.toString(request.orderItems().toArray());

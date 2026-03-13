@@ -733,6 +733,370 @@ func TestEventPassesThroughCookingUpdateData(t *testing.T) {
 	}
 }
 
+// TestPostAgentEvent verifies that POST /agents-events stores an agent event.
+func TestPostAgentEvent(t *testing.T) {
+	store := NewStore()
+	router := chi.NewRouter()
+	router.Post("/agents-events", store.HandleAgentEvent)
+	router.Get("/agents-events", store.HandleGetAgentEvents)
+
+	event := AgentEvent{
+		AgentID:   "cooking-agent",
+		Kind:      "request",
+		Text:      "Starting to cook the pizza",
+		Timestamp: FlexTimestamp{time.Now().UTC()},
+	}
+	body, _ := json.Marshal(event)
+
+	req := httptest.NewRequest(http.MethodPost, "/agents-events", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200 OK, got %d", rec.Code)
+	}
+
+	// Retrieve all events
+	getReq := httptest.NewRequest(http.MethodGet, "/agents-events", nil)
+	getRec := httptest.NewRecorder()
+	router.ServeHTTP(getRec, getReq)
+
+	if getRec.Code != http.StatusOK {
+		t.Errorf("expected status 200 OK, got %d", getRec.Code)
+	}
+
+	var events []AgentEvent
+	json.Unmarshal(getRec.Body.Bytes(), &events)
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if events[0].AgentID != "cooking-agent" {
+		t.Errorf("expected agentId 'cooking-agent', got '%s'", events[0].AgentID)
+	}
+	if events[0].Kind != "request" {
+		t.Errorf("expected kind 'request', got '%s'", events[0].Kind)
+	}
+	if events[0].Text != "Starting to cook the pizza" {
+		t.Errorf("expected text 'Starting to cook the pizza', got '%s'", events[0].Text)
+	}
+}
+
+// TestPostAgentEventMissingFields verifies that POST /agents-events returns 400 when required fields are missing.
+func TestPostAgentEventMissingFields(t *testing.T) {
+	store := NewStore()
+	router := chi.NewRouter()
+	router.Post("/agents-events", store.HandleAgentEvent)
+
+	event := AgentEvent{
+		Kind:      "request",
+		Text:      "Some text",
+		Timestamp: FlexTimestamp{time.Now().UTC()},
+	}
+	body, _ := json.Marshal(event)
+
+	req := httptest.NewRequest(http.MethodPost, "/agents-events", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 Bad Request, got %d", rec.Code)
+	}
+}
+
+// TestPostAgentEventInvalidKind verifies that POST /agents-events returns 400 for an invalid kind.
+func TestPostAgentEventInvalidKind(t *testing.T) {
+	store := NewStore()
+	router := chi.NewRouter()
+	router.Post("/agents-events", store.HandleAgentEvent)
+
+	event := AgentEvent{
+		AgentID:   "cooking-agent",
+		Kind:      "unknown",
+		Text:      "Some text",
+		Timestamp: FlexTimestamp{time.Now().UTC()},
+	}
+	body, _ := json.Marshal(event)
+
+	req := httptest.NewRequest(http.MethodPost, "/agents-events", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 Bad Request, got %d", rec.Code)
+	}
+}
+
+// TestPostAgentEventInvalidJSON verifies that POST /agents-events returns 400 for invalid JSON.
+func TestPostAgentEventInvalidJSON(t *testing.T) {
+	store := NewStore()
+	router := chi.NewRouter()
+	router.Post("/agents-events", store.HandleAgentEvent)
+
+	req := httptest.NewRequest(http.MethodPost, "/agents-events", bytes.NewReader([]byte("invalid")))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 Bad Request, got %d", rec.Code)
+	}
+}
+
+// TestPostAgentEventNumericTimestamp verifies that numeric epoch timestamps (from Java) are accepted.
+func TestPostAgentEventNumericTimestamp(t *testing.T) {
+	store := NewStore()
+	router := chi.NewRouter()
+	router.Post("/agents-events", store.HandleAgentEvent)
+	router.Get("/agents-events", store.HandleGetAgentEvents)
+
+	// Simulate Java Jackson serializing Instant as epoch seconds
+	rawJSON := `{"agentId":"store-mgmt-agent","kind":"request","text":"Hello","timestamp":1710230400.123456789}`
+
+	req := httptest.NewRequest(http.MethodPost, "/agents-events", bytes.NewReader([]byte(rawJSON)))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200 OK, got %d; body: %s", rec.Code, rec.Body.String())
+	}
+
+	// Verify the event was stored and timestamp was parsed
+	getReq := httptest.NewRequest(http.MethodGet, "/agents-events", nil)
+	getRec := httptest.NewRecorder()
+	router.ServeHTTP(getRec, getReq)
+
+	var events []AgentEvent
+	json.Unmarshal(getRec.Body.Bytes(), &events)
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if events[0].Timestamp.Year() != 2024 {
+		t.Errorf("expected year 2024 from epoch 1710230400, got %d", events[0].Timestamp.Year())
+	}
+}
+
+// TestPostAgentEventFiltersToolExecutionResultMessage verifies that events containing
+// ToolExecutionResultMessage in the text are accepted but not stored.
+func TestPostAgentEventFiltersToolExecutionResultMessage(t *testing.T) {
+	store := NewStore()
+	router := chi.NewRouter()
+	router.Post("/agents-events", store.HandleAgentEvent)
+	router.Get("/agents-events", store.HandleGetAgentEvents)
+
+	event := AgentEvent{
+		AgentID:   "store-mgmt-agent",
+		Kind:      "request",
+		Text:      "ToolExecutionResultMessage { id = 123, toolName = getInventory, text = ... }",
+		Timestamp: FlexTimestamp{time.Now().UTC()},
+	}
+	body, _ := json.Marshal(event)
+
+	req := httptest.NewRequest(http.MethodPost, "/agents-events", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200 OK, got %d", rec.Code)
+	}
+
+	// Verify the event was NOT stored
+	getReq := httptest.NewRequest(http.MethodGet, "/agents-events", nil)
+	getRec := httptest.NewRecorder()
+	router.ServeHTTP(getRec, getReq)
+
+	var events []AgentEvent
+	json.Unmarshal(getRec.Body.Bytes(), &events)
+	if len(events) != 0 {
+		t.Errorf("expected 0 events (filtered), got %d", len(events))
+	}
+}
+
+// TestGetAllAgentEvents verifies that GET /agents-events without filters returns all events.
+func TestGetAllAgentEvents(t *testing.T) {
+	store := NewStore()
+	router := chi.NewRouter()
+	router.Post("/agents-events", store.HandleAgentEvent)
+	router.Get("/agents-events", store.HandleGetAgentEvents)
+
+	events := []AgentEvent{
+		{AgentID: "cooking-agent", Kind: "request", Text: "Event 1", Timestamp: FlexTimestamp{time.Now().UTC()}},
+		{AgentID: "delivery-agent", Kind: "response", Text: "Event 2", Timestamp: FlexTimestamp{time.Now().UTC()}},
+	}
+	for _, event := range events {
+		body, _ := json.Marshal(event)
+		req := httptest.NewRequest(http.MethodPost, "/agents-events", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/agents-events", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200 OK, got %d", rec.Code)
+	}
+
+	var returned []AgentEvent
+	json.Unmarshal(rec.Body.Bytes(), &returned)
+	if len(returned) != 2 {
+		t.Errorf("expected 2 events, got %d", len(returned))
+	}
+}
+
+// TestGetAgentEventsByAgentId verifies that GET /agents-events?agentId=X returns events for that agent.
+func TestGetAgentEventsByAgentId(t *testing.T) {
+	store := NewStore()
+	router := chi.NewRouter()
+	router.Post("/agents-events", store.HandleAgentEvent)
+	router.Get("/agents-events", store.HandleGetAgentEvents)
+
+	events := []AgentEvent{
+		{AgentID: "cooking-agent", Kind: "request", Text: "Cooking event", Timestamp: FlexTimestamp{time.Now().UTC()}},
+		{AgentID: "delivery-agent", Kind: "response", Text: "Delivery event", Timestamp: FlexTimestamp{time.Now().UTC()}},
+		{AgentID: "cooking-agent", Kind: "response", Text: "Cooking done", Timestamp: FlexTimestamp{time.Now().UTC()}},
+	}
+	for _, event := range events {
+		body, _ := json.Marshal(event)
+		req := httptest.NewRequest(http.MethodPost, "/agents-events", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/agents-events?agentId=cooking-agent", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200 OK, got %d", rec.Code)
+	}
+
+	var returned []AgentEvent
+	json.Unmarshal(rec.Body.Bytes(), &returned)
+	if len(returned) != 2 {
+		t.Errorf("expected 2 cooking-agent events, got %d", len(returned))
+	}
+	for _, e := range returned {
+		if e.AgentID != "cooking-agent" {
+			t.Errorf("expected agentId 'cooking-agent', got '%s'", e.AgentID)
+		}
+	}
+}
+
+// TestGetAgentEventsEmpty verifies that GET /agents-events returns empty array when no events exist.
+func TestGetAgentEventsEmpty(t *testing.T) {
+	store := NewStore()
+	router := chi.NewRouter()
+	router.Get("/agents-events", store.HandleGetAgentEvents)
+
+	req := httptest.NewRequest(http.MethodGet, "/agents-events", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200 OK, got %d", rec.Code)
+	}
+
+	var events []AgentEvent
+	json.Unmarshal(rec.Body.Bytes(), &events)
+	if len(events) != 0 {
+		t.Errorf("expected 0 events, got %d", len(events))
+	}
+}
+
+// TestMultipleAgentEventsWithDifferentKinds verifies that multiple agent events with different kinds are tracked.
+func TestMultipleAgentEventsWithDifferentKinds(t *testing.T) {
+	store := NewStore()
+	router := chi.NewRouter()
+	router.Post("/agents-events", store.HandleAgentEvent)
+	router.Get("/agents-events", store.HandleGetAgentEvents)
+
+	events := []AgentEvent{
+		{AgentID: "cooking-agent", Kind: "request", Text: "Checking inventory", Timestamp: FlexTimestamp{time.Now().UTC()}},
+		{AgentID: "cooking-agent", Kind: "response", Text: "Putting pizza in oven", Timestamp: FlexTimestamp{time.Now().UTC()}},
+		{AgentID: "delivery-agent", Kind: "error", Text: "Dispatching rider failed", Timestamp: FlexTimestamp{time.Now().UTC()}},
+	}
+
+	for _, event := range events {
+		body, _ := json.Marshal(event)
+		req := httptest.NewRequest(http.MethodPost, "/agents-events", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Errorf("expected status 200 OK, got %d", rec.Code)
+		}
+	}
+
+	getReq := httptest.NewRequest(http.MethodGet, "/agents-events", nil)
+	getRec := httptest.NewRecorder()
+	router.ServeHTTP(getRec, getReq)
+
+	var returned []AgentEvent
+	json.Unmarshal(getRec.Body.Bytes(), &returned)
+	if len(returned) != 3 {
+		t.Fatalf("expected 3 events, got %d", len(returned))
+	}
+	if returned[0].Kind != "request" {
+		t.Errorf("expected first event kind 'request', got '%s'", returned[0].Kind)
+	}
+	if returned[1].Kind != "response" {
+		t.Errorf("expected second event kind 'response', got '%s'", returned[1].Kind)
+	}
+	if returned[2].Kind != "error" {
+		t.Errorf("expected third event kind 'error', got '%s'", returned[2].Kind)
+	}
+}
+
+// TestDeleteAgentEvents verifies that DELETE /agents-events clears all agent events.
+func TestDeleteAgentEvents(t *testing.T) {
+	store := NewStore()
+	router := chi.NewRouter()
+	router.Post("/agents-events", store.HandleAgentEvent)
+	router.Get("/agents-events", store.HandleGetAgentEvents)
+	router.Delete("/agents-events", store.HandleDeleteAgentEvents)
+
+	// Add some events
+	events := []AgentEvent{
+		{AgentID: "cooking-agent", Kind: "request", Text: "Event 1", Timestamp: FlexTimestamp{time.Now().UTC()}},
+		{AgentID: "delivery-agent", Kind: "response", Text: "Event 2", Timestamp: FlexTimestamp{time.Now().UTC()}},
+	}
+	for _, event := range events {
+		body, _ := json.Marshal(event)
+		req := httptest.NewRequest(http.MethodPost, "/agents-events", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+	}
+
+	// Delete all events
+	delReq := httptest.NewRequest(http.MethodDelete, "/agents-events", nil)
+	delRec := httptest.NewRecorder()
+	router.ServeHTTP(delRec, delReq)
+
+	if delRec.Code != http.StatusOK {
+		t.Errorf("expected status 200 OK, got %d", delRec.Code)
+	}
+
+	// Verify events are cleared
+	getReq := httptest.NewRequest(http.MethodGet, "/agents-events", nil)
+	getRec := httptest.NewRecorder()
+	router.ServeHTTP(getRec, getReq)
+
+	var returned []AgentEvent
+	json.Unmarshal(getRec.Body.Bytes(), &returned)
+	if len(returned) != 0 {
+		t.Errorf("expected 0 events after delete, got %d", len(returned))
+	}
+}
+
 // TestDeliveryEventsAreTracked verifies that delivery progress events are tracked per orderId.
 func TestDeliveryEventsAreTracked(t *testing.T) {
 	store := NewStore()

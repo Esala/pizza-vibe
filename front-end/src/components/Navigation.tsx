@@ -16,6 +16,7 @@ export default function Navigation() {
     { href: '/management', label: 'Management' },
     { href: '/chat', label: 'Orders (Chat)' },
     { href: '/mgmt', label: 'Dashboard' },
+    { href: '/agents', label: 'Agents' },
   ];
 
   return (

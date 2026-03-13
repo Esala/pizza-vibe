@@ -10,4 +10,8 @@ type OrderRepository interface {
 	UpdateOrderStatus(orderID uuid.UUID, status string) bool
 	TrackEvent(orderID uuid.UUID, event OrderEvent) error
 	GetOrderEvents(orderID uuid.UUID) ([]OrderEvent, error)
+	TrackAgentEvent(event AgentEvent) error
+	GetAgentEventsByAgentID(agentID string) ([]AgentEvent, error)
+	GetAllAgentEvents() ([]AgentEvent, error)
+	DeleteAllAgentEvents() error
 }

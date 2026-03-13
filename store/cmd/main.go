@@ -74,6 +74,9 @@ func main() {
 	r.Get("/orders", s.HandleGetOrders)
 	r.Post("/events", s.HandleEvent)
 	r.Get("/events", s.HandleGetEvents)
+	r.Post("/agents-events", s.HandleAgentEvent)
+	r.Get("/agents-events", s.HandleGetAgentEvents)
+	r.Delete("/agents-events", s.HandleDeleteAgentEvents)
 	r.Post("/chat", s.HandleChat)
 
 	// WebSocket endpoint
@@ -91,6 +94,9 @@ func main() {
 		api.Post("/order", s.HandleCreateOrder)
 		api.Get("/orders", s.HandleGetOrders)
 		api.Get("/events", s.HandleGetEvents)
+		api.Post("/agents-events", s.HandleAgentEvent)
+		api.Get("/agents-events", s.HandleGetAgentEvents)
+		api.Delete("/agents-events", s.HandleDeleteAgentEvents)
 		api.Post("/chat", s.HandleChat)
 		api.Get("/health/store", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")

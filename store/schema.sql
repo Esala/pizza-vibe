@@ -15,3 +15,14 @@ CREATE TABLE IF NOT EXISTS order_events (
     tool_name  TEXT,
     tool_input TEXT
 );
+
+CREATE TABLE IF NOT EXISTS agent_events (
+    id         SERIAL PRIMARY KEY,
+    agent_id   TEXT NOT NULL,
+    kind       TEXT NOT NULL,
+    text       TEXT NOT NULL,
+    timestamp  TIMESTAMPTZ NOT NULL
+);
+
+-- Drop order_id column if it exists from a previous schema version
+ALTER TABLE agent_events DROP COLUMN IF EXISTS order_id;

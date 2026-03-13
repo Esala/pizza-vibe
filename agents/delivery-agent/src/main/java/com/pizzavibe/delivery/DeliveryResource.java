@@ -2,6 +2,7 @@ package com.pizzavibe.delivery;
 
 import com.pizzavibe.delivery.agent.DeliveryAgent;
 import com.pizzavibe.delivery.client.StoreClient;
+import com.pizzavibe.delivery.listener.AgentContext;
 import com.pizzavibe.delivery.model.DeliveryRequest;
 import com.pizzavibe.delivery.model.StoreOrderEvent;
 import jakarta.inject.Inject;
@@ -26,6 +27,9 @@ public class DeliveryResource {
     @RestClient
     StoreClient storeClient;
 
+    @Inject
+    AgentContext agentContext;
+
     @GET
     @Produces(MediaType.TEXT_PLAIN)
     public String hello() {
@@ -35,6 +39,7 @@ public class DeliveryResource {
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     public String deliverOrderStream(DeliveryRequest request) {
+        agentContext.setOrderId(request.orderId());
         try {
             return deliveryAgent.deliverOrder(request.orderId());
         } catch (Exception e) {
