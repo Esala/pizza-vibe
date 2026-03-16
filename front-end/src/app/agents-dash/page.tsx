@@ -2,13 +2,22 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import styles from './page.module.css';
+import DashboardPanels from '@/components/DashboardPanels';
+import DashboardBlock from '@/components/DashboardBlock';
+import InventoryItem from '@/components/InventoryItem';
+import OvenItem from '@/components/OvenItem';
+import BikeItem from '@/components/BikeItem';
+import AgentBlock from '@/components/AgentBlock';
+import Button from '@/components/Button';
+import Message from '@/components/Chat/Message';
+import MessageTurn from '@/components/Chat/MessageTurn';
 
-interface InventoryItem {
+interface InventoryData {
   item: string;
   quantity: number;
 }
 
-interface DrinkItem {
+interface DrinkData {
   item: string;
   quantity: number;
 }
@@ -60,15 +69,9 @@ const DRINK_EMOJI: Record<string, string> = {
   Lemonade: '🍋',
 };
 
-const KIND_EMOJI: Record<string, string> = {
-  request: '📤',
-  response: '📥',
-  error: '❌',
-};
-
 const AGENTS: AgentConfig[] = [
-  { agentIds: ['store-mgmt-agent', 'chat-agent', 'pizza-order-workflow'], label: 'Store Manager', emoji: '🏪' },
-  { agentIds: ['drinks-agent'], label: 'Drinks Agent', emoji: '🍹' },
+  { agentIds: ['store-mgmt-agent', 'chat-agent', 'pizza-order-workflow'], label: 'Store Manager', emoji: '👩‍💼' },
+  { agentIds: ['drinks-agent'], label: 'Drinks Agent', emoji: '🤵‍♂️' },
   { agentIds: ['cooking-agent'], label: 'Cooking Agent', emoji: '👨‍🍳' },
   { agentIds: ['delivery-agent'], label: 'Delivery Agent', emoji: '🚴' },
 ];
@@ -81,11 +84,32 @@ function getDrinkEmoji(item: string): string {
   return DRINK_EMOJI[item] || '🥤';
 }
 
+type StatusType = 'active' | 'inactive' | 'failed';
+
+function getServiceStatus(ok: boolean): StatusType {
+  return ok ? 'active' : 'failed';
+}
+
+/** Group events into consecutive turns by kind (request = user, response/error = bot) */
+function groupEventsIntoTurns(events: AgentEvent[]): { type: 'bot' | 'user'; messages: string[] }[] {
+  const turns: { type: 'bot' | 'user'; messages: string[] }[] = [];
+  for (const event of events) {
+    const type = event.kind === 'request' ? 'user' : 'bot';
+    const lastTurn = turns[turns.length - 1];
+    if (lastTurn && lastTurn.type === type) {
+      lastTurn.messages.push(event.text);
+    } else {
+      turns.push({ type, messages: [event.text] });
+    }
+  }
+  return turns;
+}
+
 const STORE_SERVICE_URL = process.env.NEXT_PUBLIC_STORE_SERVICE_URL || '';
 
 export default function AgentsDashPage() {
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [drinks, setDrinks] = useState<DrinkItem[]>([]);
+  const [inventory, setInventory] = useState<InventoryData[]>([]);
+  const [drinks, setDrinks] = useState<DrinkData[]>([]);
   const [ovens, setOvens] = useState<Oven[]>([]);
   const [bikes, setBikes] = useState<Bike[]>([]);
   const [inventoryOk, setInventoryOk] = useState(true);
@@ -159,141 +183,73 @@ export default function AgentsDashPage() {
 
   return (
     <main className={styles.page}>
-      {/* Dashboard Section */}
-      <h2 className={styles.sectionTitle}>Management Dashboard</h2>
-
-      <div className={styles.panelRow}>
-        {/* Drinks Stock */}
-        <div className={styles.box}>
-          <div className={styles.boxHeader}>
-            <h3 className={styles.boxTitle}>🍹 Drinks Stock</h3>
-            <div className={`${styles.statusDot} ${!drinksOk ? styles.statusDotError : ''}`} />
-          </div>
-          {!drinksOk && <p className={styles.errorText}>Service unavailable</p>}
-          <div className={styles.chipWrap}>
-            {drinks.map((item) => (
-              <div key={item.item} className={styles.chip}>
-                <span className={styles.chipEmoji}>{getDrinkEmoji(item.item)}</span>
-                <div className={styles.chipInfo}>
-                  <span className={styles.chipLabel}>{item.item}</span>
-                  <span className={styles.chipQty}>{item.quantity}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Inventory */}
-        <div className={styles.box}>
-          <div className={styles.boxHeader}>
-            <h3 className={styles.boxTitle}>📦 Inventory</h3>
-            <div className={`${styles.statusDot} ${!inventoryOk ? styles.statusDotError : ''}`} />
-          </div>
-          {!inventoryOk && <p className={styles.errorText}>Service unavailable</p>}
-          <div className={styles.chipWrap}>
-            {inventory.map((item) => (
-              <div key={item.item} className={styles.chip}>
-                <span className={styles.chipEmoji}>{getInventoryEmoji(item.item)}</span>
-                <div className={styles.chipInfo}>
-                  <span className={styles.chipLabel}>{item.item}</span>
-                  <span className={styles.chipQty}>{item.quantity}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Ovens */}
-        <div className={styles.box}>
-          <div className={styles.boxHeader}>
-            <h3 className={styles.boxTitle}>🔥 Ovens</h3>
-            <div className={`${styles.statusDot} ${!ovensOk ? styles.statusDotError : ''}`} />
-          </div>
-          {!ovensOk && <p className={styles.errorText}>Service unavailable</p>}
-          {ovens.map((oven) => (
-            <div key={oven.id} className={styles.unitRow}>
-              <span className={styles.unitEmoji}>
-                {oven.status === 'AVAILABLE' ? '🟢' : '🍕'}
-              </span>
-              <div className={styles.unitInfo}>
-                <span className={styles.unitId}>{oven.id}</span>
-                <span className={`${styles.unitStatus} ${oven.status === 'AVAILABLE' ? styles.available : styles.reserved}`}>
-                  {oven.status === 'AVAILABLE' ? 'Available' : `Cooking${oven.user ? ` (${oven.user})` : ''}`}
-                </span>
-                {oven.status === 'RESERVED' && (
-                  <div className={styles.progressBar}>
-                    <div className={styles.progressFill} style={{ width: `${oven.progress}%` }} />
-                  </div>
-                )}
-              </div>
-            </div>
+      {/* Dashboard Panels */}
+      <DashboardPanels>
+        <DashboardBlock icon="drinks" title="Drinks Stock" status={getServiceStatus(drinksOk)}>
+          {drinks.map((item) => (
+            <InventoryItem key={item.item} emoji={getDrinkEmoji(item.item)} quantity={item.quantity} />
           ))}
-        </div>
-
-        {/* Bikes */}
-        <div className={styles.box}>
-          <div className={styles.boxHeader}>
-            <h3 className={styles.boxTitle}>🚲 Bikes</h3>
-            <div className={`${styles.statusDot} ${!bikesOk ? styles.statusDotError : ''}`} />
-          </div>
-          {!bikesOk && <p className={styles.errorText}>Service unavailable</p>}
-          {bikes.map((bike) => (
-            <div key={bike.id} className={styles.unitRow}>
-              <span className={styles.unitEmoji}>
-                {bike.status === 'AVAILABLE' ? '🟢' : '🚴'}
-              </span>
-              <div className={styles.unitInfo}>
-                <span className={styles.unitId}>{bike.id}</span>
-                <span className={`${styles.unitStatus} ${bike.status === 'AVAILABLE' ? styles.available : styles.reserved}`}>
-                  {bike.status === 'AVAILABLE' ? 'Available' : `Delivering${bike.user ? ` (${bike.user})` : ''}`}
-                </span>
-              </div>
-            </div>
+        </DashboardBlock>
+        <DashboardBlock icon="inventory" title="Inventory" status={getServiceStatus(inventoryOk)}>
+          {inventory.map((item) => (
+            <InventoryItem key={item.item} emoji={getInventoryEmoji(item.item)} quantity={item.quantity} />
           ))}
-        </div>
-      </div>
+        </DashboardBlock>
+        <DashboardBlock icon="kitchen" title="Ovens" status={getServiceStatus(ovensOk)}>
+          {ovens.map((oven, i) => (
+            <OvenItem
+              key={oven.id}
+              number={i + 1}
+              status={oven.status === 'AVAILABLE' ? 'idle' : 'cooking'}
+            />
+          ))}
+        </DashboardBlock>
+        <DashboardBlock icon="bikes" title="Bikes" status={getServiceStatus(bikesOk)}>
+          {bikes.map((bike, i) => (
+            <BikeItem
+              key={bike.id}
+              number={i + 1}
+              status={bike.status === 'AVAILABLE' ? 'idle' : 'delivering'}
+            />
+          ))}
+        </DashboardBlock>
+      </DashboardPanels>
 
       {/* Agents Section */}
-      <div className={styles.titleRow}>
-        <h2 className={styles.sectionTitle}>🤖 Agents</h2>
-        <button className={styles.clearButton} onClick={handleClearAll}>
-          🗑️ Clear All
-        </button>
-      </div>
+      <div className={styles.agentsSection}>
+        <div className={styles.agentsTitleRow}>
+          <h2 className={styles.agentsTitle}>Agents</h2>
+          <Button color="danger" onClick={handleClearAll}>Clear all</Button>
+        </div>
+        <div className={styles.agentPanels}>
+          {AGENTS.map((agent) => {
+            const events = eventsByAgent[agent.label] || [];
+            const hasActivity = events.some((e) => e.kind === 'response');
+            const turns = groupEventsIntoTurns(events);
 
-      <div className={styles.panelRow}>
-        {AGENTS.map((agent) => {
-          const events = eventsByAgent[agent.label] || [];
-          return (
-            <div key={agent.label} className={styles.box}>
-              <div className={styles.boxHeader}>
-                <h3 className={styles.boxTitle}>
-                  {agent.emoji} {agent.label}
-                </h3>
-              </div>
-
-              {events.length === 0 ? (
-                <p className={styles.emptyText}>No events yet... 🦗</p>
-              ) : (
-                <div className={styles.eventList}>
-                  {[...events].reverse().map((event, idx) => (
-                    <div key={idx} className={styles.eventRow}>
-                      <span className={styles.eventKind}>
-                        {KIND_EMOJI[event.kind] || '📋'}
-                      </span>
-                      <div className={styles.eventBody}>
-                        <span className={styles.eventText}>{event.text}</span>
-                        <span className={styles.eventMeta}>
-                          {event.kind} · {new Date(event.timestamp).toLocaleTimeString()}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
+            return (
+              <AgentBlock
+                key={agent.label}
+                emoji={agent.emoji}
+                title={agent.label}
+                status={hasActivity ? 'talking' : 'default'}
+              >
+                {events.length === 0 ? (
+                  <Message message="No events yet..." type="bot" size="small" />
+                ) : (
+                  turns.map((turn, idx) => (
+                    <MessageTurn
+                      key={idx}
+                      messages={turn.messages}
+                      type={turn.type}
+                      size="small"
+                    />
+                  ))
+                )}
+              </AgentBlock>
+            );
+          })}
+        </div>
       </div>
     </main>
   );
